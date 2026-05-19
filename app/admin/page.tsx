@@ -3,6 +3,36 @@ import { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabase';
 import { useRouter } from 'next/navigation';
 
+// --- OPTIMIZED ROW COMPONENTS ---
+function DurianRow({ item, onSave }: { item: any, onSave: (type: string, data: any) => void }) {
+  const [data, setData] = useState({ 
+    total_durians: item.total_durians, 
+    total_weight_kg: item.total_weight_kg, 
+    price_per_kg: item.price_per_kg 
+  });
+
+  return (
+    <tr className="border-b border-gray-200 hover:bg-gray-100 transition-colors bg-white">
+      <td className="p-4 font-extrabold text-gray-900 text-lg">{item.type}</td>
+      <td className="p-4"><input type="number" value={data.total_durians} onChange={e => setData({...data, total_durians: e.target.value})} className="border-2 border-gray-300 p-2 rounded-lg w-20 text-black text-center font-bold" /></td>
+      <td className="p-4"><input type="number" step="0.1" value={data.total_weight_kg} onChange={e => setData({...data, total_weight_kg: e.target.value})} className="border-2 border-gray-300 p-2 rounded-lg w-24 text-black text-center font-bold" /></td>
+      <td className="p-4"><input type="number" step="0.1" value={data.price_per_kg} onChange={e => setData({...data, price_per_kg: e.target.value})} className="border-2 border-green-300 bg-green-50 p-2 rounded-lg w-24 text-black text-center font-bold text-green-800" /></td>
+      <td className="p-4 text-center"><button onClick={() => onSave(item.type, data)} className="bg-gray-800 text-white px-5 py-2.5 rounded-lg font-bold hover:bg-black transition-colors shadow-sm active:scale-95">Save Update</button></td>
+    </tr>
+  );
+}
+
+function PackRow({ item, onSave }: { item: any, onSave: (name: string, qty: string) => void }) {
+  const [qty, setQty] = useState(String(item.quantity));
+  return (
+    <tr className="border-b border-gray-200 hover:bg-gray-100 transition-colors bg-white">
+      <td className="p-4 font-extrabold text-gray-900 text-lg">{item.item_name}</td>
+      <td className="p-4"><input type="number" value={qty} onChange={e => setQty(e.target.value)} className="border-2 border-gray-300 p-3 rounded-xl w-32 text-black text-center font-black text-lg" /></td>
+      <td className="p-4 text-center"><button onClick={() => onSave(item.item_name, qty)} className="bg-gray-800 text-white px-6 py-3 rounded-xl font-bold hover:bg-black transition-colors shadow-sm active:scale-95 text-lg">Save Update</button></td>
+    </tr>
+  );
+}
+
 export default function AdminModule() {
   const router = useRouter();
   const [inventory, setInventory] = useState<any[]>([]);
@@ -26,9 +56,6 @@ export default function AdminModule() {
   const [staffName, setStaffName] = useState('');
   const [staffRate, setStaffRate] = useState('per hour');
 
-  const [editInventory, setEditInventory] = useState<Record<string, any>>({});
-  const [editPackData, setEditPackData] = useState<Record<string, any>>({});
-
   // TOAST POPUPS
   const [toast, setToast] = useState<{show: boolean, msg: string, type: 'error'|'success'}>({show: false, msg: '', type: 'success'});
   const showToast = (msg: string, type: 'error'|'success' = 'success') => {
@@ -38,19 +65,9 @@ export default function AdminModule() {
 
   const fetchData = async () => {
     const { data: durians } = await supabase.from('durian_inventory').select('*').order('type');
-    if (durians) {
-      setInventory(durians);
-      const edits: Record<string, any> = {};
-      durians.forEach(d => { edits[d.type] = { total_durians: d.total_durians, total_weight_kg: d.total_weight_kg, price_per_kg: d.price_per_kg }; });
-      setEditInventory(edits);
-    }
+    if (durians) setInventory(durians);
     const { data: packaging } = await supabase.from('packaging_inventory').select('*');
-    if (packaging) {
-      setPackInventory(packaging);
-      const packEdits: Record<string, any> = {};
-      packaging.forEach(p => { packEdits[p.item_name] = { quantity: p.quantity }; });
-      setEditPackData(packEdits);
-    }
+    if (packaging) setPackInventory(packaging);
   };
 
   useEffect(() => {
@@ -143,20 +160,6 @@ export default function AdminModule() {
     else setOpAmount('');
   }, [opCategory]);
 
-  const saveDirectEdit = async (type: string) => {
-    const data = editInventory[type];
-    await supabase.from('durian_inventory').update({ total_durians: parseInt(data.total_durians), total_weight_kg: parseFloat(data.total_weight_kg), price_per_kg: parseFloat(data.price_per_kg) }).eq('type', type);
-    showToast(`${type} updated!`);
-    fetchData();
-  };
-
-  const savePackEdit = async (item_name: string) => {
-    const data = editPackData[item_name];
-    await supabase.from('packaging_inventory').update({ quantity: parseInt(data.quantity) }).eq('item_name', item_name);
-    showToast(`${item_name} updated!`);
-    fetchData();
-  };
-
   const inputClass = "w-full border border-gray-300 p-3 rounded-xl text-black bg-gray-50 focus:bg-white focus:ring-2 focus:ring-blue-200 outline-none transition-all shadow-inner font-semibold";
 
   const Modal = ({ title, onClose, children }: { title: string, onClose: () => void, children: React.ReactNode }) => (
@@ -174,7 +177,7 @@ export default function AdminModule() {
   return (
     <div className="pb-10 text-black bg-gray-50 min-h-screen relative">
       
-      {/* TOAST POPUP (Shows above everything) */}
+      {/* TOAST POPUP */}
       {toast.show && (
         <div className={`fixed top-10 left-1/2 transform -translate-x-1/2 z-[100] px-8 py-4 rounded-2xl shadow-2xl text-white font-extrabold text-lg transition-all animate-bounce ${toast.type === 'error' ? 'bg-red-600' : 'bg-green-600'}`}>
           {toast.type === 'error' ? '❌ ' : '✅ '} {toast.msg}
@@ -343,24 +346,16 @@ export default function AdminModule() {
           <table className="w-full text-left border-collapse whitespace-nowrap">
             <thead>
               <tr className="bg-white border-b-2 border-gray-200">
-                <th className="p-4 font-bold text-gray-600 sticky top-0 bg-white shadow-sm">Type</th><th className="p-4 font-bold text-gray-600 sticky top-0 bg-white shadow-sm">Qty (pcs)</th><th className="p-4 font-bold text-gray-600 sticky top-0 bg-white shadow-sm">Weight (kg)</th><th className="p-4 font-bold text-gray-600 sticky top-0 bg-white shadow-sm">Price/kg</th><th className="p-4 font-bold text-gray-600 sticky top-0 bg-white shadow-sm text-center">Action</th>
+                <th className="p-4 font-bold text-gray-600">Type</th><th className="p-4 font-bold text-gray-600">Qty (pcs)</th><th className="p-4 font-bold text-gray-600">Weight (kg)</th><th className="p-4 font-bold text-gray-600">Price/kg</th><th className="p-4 font-bold text-gray-600 text-center">Action</th>
               </tr>
             </thead>
             <tbody>
               {inventory.map(item => (
-                <tr key={item.type} className="border-b border-gray-200 hover:bg-gray-100 transition-colors bg-white">
-                  <td className="p-4 font-extrabold text-gray-900 text-lg">{item.type}</td>
-                  <td className="p-4">
-                    <input name="total_durians" type="number" value={String(editInventory[item.type]?.total_durians || '')} onChange={e => { const val = e.target.value; setEditInventory(prev => ({ ...prev, [item.type]: { ...prev[item.type], total_durians: val } })); }} className="border-2 border-gray-300 p-2 rounded-lg w-20 text-black text-center font-bold" />
-                  </td>
-                  <td className="p-4">
-                    <input name="total_weight_kg" type="number" step="0.1" value={String(editInventory[item.type]?.total_weight_kg || '')} onChange={e => { const val = e.target.value; setEditInventory(prev => ({ ...prev, [item.type]: { ...prev[item.type], total_weight_kg: val } })); }} className="border-2 border-gray-300 p-2 rounded-lg w-24 text-center font-bold" />
-                  </td>
-                  <td className="p-4">
-                    <input name="price_per_kg" type="number" step="0.1" value={String(editInventory[item.type]?.price_per_kg || '')} onChange={e => { const val = e.target.value; setEditInventory(prev => ({ ...prev, [item.type]: { ...prev[item.type], price_per_kg: val } })); }} className="border-2 border-green-300 bg-green-50 p-2 rounded-lg w-24 text-black text-center font-bold text-green-800" />
-                  </td>
-                  <td className="p-4 text-center"><button onClick={() => saveDirectEdit(item.type)} className="bg-gray-800 text-white px-5 py-2.5 rounded-lg font-bold hover:bg-black transition-colors shadow-sm active:scale-95">Save Update</button></td>
-                </tr>
+                <DurianRow key={item.type} item={item} onSave={async (type, data) => {
+                    await supabase.from('durian_inventory').update({ total_durians: parseInt(data.total_durians), total_weight_kg: parseFloat(data.total_weight_kg), price_per_kg: parseFloat(data.price_per_kg) }).eq('type', type);
+                    showToast(`${type} updated!`);
+                    fetchData();
+                }} />
               ))}
             </tbody>
           </table>
@@ -373,18 +368,16 @@ export default function AdminModule() {
           <table className="w-full text-left border-collapse whitespace-nowrap">
             <thead>
               <tr className="bg-white border-b-2 border-gray-200">
-                <th className="p-4 font-bold text-gray-600 sticky top-0 bg-white shadow-sm">Item Name</th><th className="p-4 font-bold text-gray-600 sticky top-0 bg-white shadow-sm">Current Qty</th><th className="p-4 font-bold text-gray-600 sticky top-0 bg-white shadow-sm text-center">Action</th>
+                <th className="p-4 font-bold text-gray-600">Item Name</th><th className="p-4 font-bold text-gray-600">Current Qty</th><th className="p-4 font-bold text-gray-600 text-center">Action</th>
               </tr>
             </thead>
             <tbody>
               {packInventory.map(item => (
-                <tr key={item.item_name} className="border-b border-gray-200 hover:bg-gray-100 transition-colors bg-white">
-                  <td className="p-4 font-extrabold text-gray-900 text-lg">{item.item_name}</td>
-                  <td className="p-4">
-                    <input name="quantity" type="number" value={String(editPackData[item.item_name]?.quantity || '')} onChange={e => { const val = e.target.value; setEditPackData(prev => ({ ...prev, [item.item_name]: { quantity: val } })); }} className="border-2 border-gray-300 p-3 rounded-xl w-32 text-black text-center font-black text-lg" />
-                  </td>
-                  <td className="p-4 text-center"><button onClick={() => savePackEdit(item.item_name)} className="bg-gray-800 text-white px-6 py-3 rounded-xl font-bold hover:bg-black transition-colors shadow-sm active:scale-95 text-lg">Save Update</button></td>
-                </tr>
+                <PackRow key={item.item_name} item={item} onSave={async (name, qty) => {
+                    await supabase.from('packaging_inventory').update({ quantity: parseInt(qty) }).eq('item_name', name);
+                    showToast(`${name} updated!`);
+                    fetchData();
+                }} />
               ))}
             </tbody>
           </table>
