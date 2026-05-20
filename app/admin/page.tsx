@@ -3,86 +3,80 @@ import { useState, useEffect, useRef } from 'react';
 import { supabase } from '../../lib/supabase';
 import { useRouter } from 'next/navigation';
 
-// --- SHARED STYLES ---
-const inputClass = "w-full border border-gray-300 p-3 rounded-xl text-black bg-gray-50 focus:bg-white focus:ring-2 focus:ring-blue-200 outline-none transition-all shadow-inner font-semibold";
+// --- SHARED STYLES (STRICT GRAY, YELLOW, GREEN) ---
+const inputClass = "w-full border-2 border-gray-300 p-3 rounded-xl text-black bg-gray-50 focus:bg-white focus:ring-2 focus:ring-green-400 outline-none transition-all font-semibold";
+const modalBtnClass = "bg-green-600 text-white font-extrabold py-4 rounded-xl hover:bg-green-700 shadow-md transition-all active:scale-[0.98] text-lg w-full mt-4";
+const deleteBtnClass = "bg-gray-200 text-gray-800 font-bold px-4 py-2 rounded-lg hover:bg-yellow-400 hover:text-black transition-colors";
 
-// --- OPTIMIZED MODAL COMPONENT (MOVED OUTSIDE TO PREVENT RE-RENDERING BUGS) ---
 const Modal = ({ title, onClose, children }: { title: string, onClose: () => void, children: React.ReactNode }) => (
-  <div className="fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4 md:p-8 backdrop-blur-sm">
+  <div className="fixed inset-0 bg-gray-900/80 z-50 flex items-center justify-center p-4 md:p-8 backdrop-blur-sm">
     <div className="bg-white w-full max-w-5xl max-h-[90vh] rounded-3xl shadow-2xl flex flex-col overflow-hidden animate-in fade-in zoom-in duration-200">
-      <div className="bg-gray-100 p-6 border-b flex justify-between items-center shrink-0">
-        <h2 className="text-2xl font-black text-gray-900">{title}</h2>
-        <button onClick={onClose} className="bg-gray-300 text-gray-800 px-6 py-2 rounded-xl font-bold hover:bg-gray-400 shadow-sm transition-colors">✕ Close</button>
+      <div className="bg-gray-100 p-6 border-b-2 border-gray-200 flex justify-between items-center shrink-0">
+        <h2 className="text-2xl font-black text-green-900">{title}</h2>
+        <button onClick={onClose} className="bg-gray-300 text-gray-800 px-6 py-2 rounded-xl font-bold hover:bg-yellow-400 transition-colors shadow-sm">✕ Close</button>
       </div>
       <div className="p-6 overflow-y-auto bg-gray-50/50">{children}</div>
     </div>
   </div>
 );
 
-// --- OPTIMIZED ROW COMPONENTS ---
-function DurianRow({ item, onSave }: { item: any, onSave: (type: string, data: any) => void }) {
+function DurianRow({ item, onSave, onDelete }: { item: any, onSave: (type: string, data: any) => void, onDelete: (type: string) => void }) {
   const qtyRef = useRef<HTMLInputElement>(null);
   const weightRef = useRef<HTMLInputElement>(null);
   const priceRef = useRef<HTMLInputElement>(null);
 
   return (
-    <tr className="border-b border-gray-200 hover:bg-gray-100 transition-colors bg-white">
+    <tr className="border-b border-gray-200 hover:bg-yellow-50 transition-colors bg-white">
       <td className="p-4 font-extrabold text-gray-900 text-lg">{item.type}</td>
-      <td className="p-4"><input type="number" ref={qtyRef} defaultValue={item.total_durians} className="border-2 border-gray-300 p-2 rounded-lg w-20 text-black text-center font-bold" /></td>
-      <td className="p-4"><input type="number" step="0.1" ref={weightRef} defaultValue={item.total_weight_kg} className="border-2 border-gray-300 p-2 rounded-lg w-24 text-black text-center font-bold" /></td>
-      <td className="p-4"><input type="number" step="0.1" ref={priceRef} defaultValue={item.price_per_kg} className="border-2 border-green-300 bg-green-50 p-2 rounded-lg w-24 text-black text-center font-bold text-green-800" /></td>
-      <td className="p-4 text-center">
-        <button onClick={() => onSave(item.type, { 
-          total_durians: qtyRef.current?.value, 
-          total_weight_kg: weightRef.current?.value, 
-          price_per_kg: priceRef.current?.value 
-        })} className="bg-gray-800 text-white px-5 py-2.5 rounded-lg font-bold hover:bg-black transition-colors shadow-sm active:scale-95">Save Update</button>
+      <td className="p-4"><input type="number" ref={qtyRef} defaultValue={item.total_durians} className="border-2 border-gray-300 p-2 rounded-lg w-20 text-center font-bold" /></td>
+      <td className="p-4"><input type="number" step="0.1" ref={weightRef} defaultValue={item.total_weight_kg} className="border-2 border-gray-300 p-2 rounded-lg w-24 text-center font-bold" /></td>
+      <td className="p-4"><input type="number" step="0.1" ref={priceRef} defaultValue={item.price_per_kg} className="border-2 border-green-300 bg-green-50 p-2 rounded-lg w-24 text-center font-bold text-green-800" /></td>
+      <td className="p-4 text-center flex justify-center gap-2">
+        <button onClick={() => onSave(item.type, { total_durians: qtyRef.current?.value, total_weight_kg: weightRef.current?.value, price_per_kg: priceRef.current?.value })} className="bg-green-600 text-white px-4 py-2 rounded-lg font-bold hover:bg-green-700 shadow-sm active:scale-95">Save</button>
+        <button onClick={() => onDelete(item.type)} className={deleteBtnClass}>Delete</button>
       </td>
     </tr>
   );
 }
 
-function PackRow({ item, onSave }: { item: any, onSave: (name: string, qty: string) => void }) {
+function PackRow({ item, onSave, onDelete }: { item: any, onSave: (name: string, qty: string) => void, onDelete: (name: string) => void }) {
   const qtyRef = useRef<HTMLInputElement>(null);
   return (
-    <tr className="border-b border-gray-200 hover:bg-gray-100 transition-colors bg-white">
+    <tr className="border-b border-gray-200 hover:bg-yellow-50 transition-colors bg-white">
       <td className="p-4 font-extrabold text-gray-900 text-lg">{item.item_name}</td>
-      <td className="p-4"><input type="number" ref={qtyRef} defaultValue={item.quantity} className="border-2 border-gray-300 p-3 rounded-xl w-32 text-black text-center font-black text-lg" /></td>
-      <td className="p-4 text-center">
-        <button onClick={() => onSave(item.item_name, qtyRef.current?.value || '0')} className="bg-gray-800 text-white px-6 py-3 rounded-xl font-bold hover:bg-black transition-colors shadow-sm active:scale-95 text-lg">Save Update</button>
+      <td className="p-4"><input type="number" ref={qtyRef} defaultValue={item.quantity} className="border-2 border-gray-300 p-3 rounded-xl w-32 text-center font-black text-lg" /></td>
+      <td className="p-4 text-center flex justify-center gap-2">
+        <button onClick={() => onSave(item.item_name, qtyRef.current?.value || '0')} className="bg-green-600 text-white px-4 py-2 rounded-lg font-bold hover:bg-green-700 shadow-sm active:scale-95">Save</button>
+        <button onClick={() => onDelete(item.item_name)} className={deleteBtnClass}>Delete</button>
       </td>
     </tr>
   );
 }
 
-// --- MAIN ADMIN MODULE ---
 export default function AdminModule() {
   const router = useRouter();
+  const [adminName, setAdminName] = useState('Unknown Admin');
   const [inventory, setInventory] = useState<any[]>([]);
   const [packInventory, setPackInventory] = useState<any[]>([]);
-  
-  // MODAL STATE
   const [activeModal, setActiveModal] = useState<string | null>(null);
 
   // Form States
-  const [stockForms, setStockForms] = useState([{ id: 1, type: '', isNew: false, newType: '', qty: '', weight: '', supplierPriceKg: '', newSellingPrice: '' }]);
+  const [stockForms, setStockForms] = useState([{ id: 1, type: '', isNew: false, newType: '', qty: '', weight: '', supplierPriceKg: '', newSellingPrice: '', supplierName: '', receiptFile: null as File | null }]);
   const [spoilType, setSpoilType] = useState('');
   const [spoilAction, setSpoilAction] = useState('spoilage'); 
   const [spoilQty, setSpoilQty] = useState('');
   const [spoilWeight, setSpoilWeight] = useState('');
-  const [refundAmount, setRefundAmount] = useState('');
+  
   const [packItem, setPackItem] = useState('');
   const [packQty, setPackQty] = useState('');
   const [packCost, setPackCost] = useState('');
+  
   const [opCategory, setOpCategory] = useState('Staff Salary');
   const [opAmount, setOpAmount] = useState('');
   const [staffName, setStaffName] = useState('');
   const [staffRate, setStaffRate] = useState('per hour');
+  const [expenseReceipt, setExpenseReceipt] = useState<File | null>(null);
 
-  const [editInventory, setEditInventory] = useState<Record<string, any>>({});
-  const [editPackData, setEditPackData] = useState<Record<string, any>>({});
-
-  // TOAST POPUPS
   const [toast, setToast] = useState<{show: boolean, msg: string, type: 'error'|'success'}>({show: false, msg: '', type: 'success'});
   const showToast = (msg: string, type: 'error'|'success' = 'success') => {
     setToast({show: true, msg, type});
@@ -90,20 +84,17 @@ export default function AdminModule() {
   };
 
   const fetchData = async () => {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (session) {
+      const { data: profile } = await supabase.from('profiles').select('account_name').eq('id', session.user.id).single();
+      if (profile?.account_name) setAdminName(profile.account_name);
+    }
+
     const { data: durians } = await supabase.from('durian_inventory').select('*').order('type');
-    if (durians) {
-      setInventory(durians);
-      const edits: Record<string, any> = {};
-      durians.forEach(d => { edits[d.type] = { total_durians: d.total_durians, total_weight_kg: d.total_weight_kg, price_per_kg: d.price_per_kg }; });
-      setEditInventory(edits);
-    }
+    if (durians) setInventory(durians);
+    
     const { data: packaging } = await supabase.from('packaging_inventory').select('*');
-    if (packaging) {
-      setPackInventory(packaging);
-      const packEdits: Record<string, any> = {};
-      packaging.forEach(p => { packEdits[p.item_name] = { quantity: p.quantity }; });
-      setEditPackData(packEdits);
-    }
+    if (packaging) setPackInventory(packaging);
   };
 
   useEffect(() => {
@@ -120,7 +111,17 @@ export default function AdminModule() {
     checkAccessAndFetch();
   }, [router]);
 
-  const handleAddStockRow = () => setStockForms([...stockForms, { id: Date.now(), type: '', isNew: false, newType: '', qty: '', weight: '', supplierPriceKg: '', newSellingPrice: '' }]);
+  const uploadFile = async (file: File | null) => {
+    if (!file) return null;
+    const fileExt = file.name.split('.').pop();
+    const fileName = `${Date.now()}_${Math.random()}.${fileExt}`;
+    const { error: uploadError } = await supabase.storage.from('receipts').upload(fileName, file);
+    if (uploadError) { showToast("Error uploading file: " + uploadError.message, "error"); return null; }
+    const { data } = supabase.storage.from('receipts').getPublicUrl(fileName);
+    return data.publicUrl;
+  };
+
+  const handleAddStockRow = () => setStockForms([...stockForms, { id: Date.now(), type: '', isNew: false, newType: '', qty: '', weight: '', supplierPriceKg: '', newSellingPrice: '', supplierName: '', receiptFile: null }]);
   const handleRemoveStockRow = (id: number) => setStockForms(stockForms.filter(form => form.id !== id));
   const updateStockForm = (id: number, field: string, value: any) => setStockForms(prev => prev.map(form => form.id === id ? { ...form, [field]: value } : form));
 
@@ -128,21 +129,30 @@ export default function AdminModule() {
     for (const form of stockForms) {
       const actualType = form.isNew ? form.newType.trim() : form.type;
       if (!actualType || !form.qty || !form.weight || !form.newSellingPrice || !form.supplierPriceKg) {
-        return showToast("Please fill all fields for all durians!", "error");
+        return showToast("Please fill all required fields for all durians!", "error");
       }
 
-      const existing = inventory.find(i => i.type.toLowerCase() === actualType.toLowerCase());
-      if (existing) {
-        await supabase.from('durian_inventory').update({ total_durians: existing.total_durians + parseInt(form.qty), total_weight_kg: existing.total_weight_kg + parseFloat(form.weight), price_per_kg: parseFloat(form.newSellingPrice) }).eq('type', existing.type);
-      } else {
-        await supabase.from('durian_inventory').insert({ type: actualType, total_durians: parseInt(form.qty), total_weight_kg: parseFloat(form.weight), price_per_kg: parseFloat(form.newSellingPrice) });
-      }
+      if (window.confirm(`Confirm stock in for ${form.qty} pcs of ${actualType}?`)) {
+        const receiptUrl = await uploadFile(form.receiptFile);
 
-      const totalCost = parseFloat(form.weight) * parseFloat(form.supplierPriceKg);
-      await supabase.from('expenses').insert({ category: 'Durian Restock', durian_type: actualType, quantity_bought: parseInt(form.qty), weight_bought_kg: parseFloat(form.weight), total_cost_rm: totalCost, description: `Bought @ RM${form.supplierPriceKg}/kg` });
+        const existing = inventory.find(i => i.type.toLowerCase() === actualType.toLowerCase());
+        if (existing) {
+          await supabase.from('durian_inventory').update({ total_durians: existing.total_durians + parseInt(form.qty), total_weight_kg: existing.total_weight_kg + parseFloat(form.weight), price_per_kg: parseFloat(form.newSellingPrice) }).eq('type', existing.type);
+        } else {
+          await supabase.from('durian_inventory').insert({ type: actualType, total_durians: parseInt(form.qty), total_weight_kg: parseFloat(form.weight), price_per_kg: parseFloat(form.newSellingPrice) });
+        }
+
+        const totalCost = parseFloat(form.weight) * parseFloat(form.supplierPriceKg);
+        await supabase.from('expenses').insert({ 
+          category: 'Durian Restock', durian_type: actualType, quantity_bought: parseInt(form.qty), 
+          weight_bought_kg: parseFloat(form.weight), total_cost_rm: totalCost, 
+          description: `Bought @ RM${form.supplierPriceKg}/kg`,
+          user_name: adminName, supplier_name: form.supplierName, receipt_url: receiptUrl
+        });
+      }
     }
-    showToast("All Durian Stocks updated and Expenses logged!");
-    setStockForms([{ id: Date.now(), type: '', isNew: false, newType: '', qty: '', weight: '', supplierPriceKg: '', newSellingPrice: '' }]);
+    showToast("✅ Stock updated and logged successfully!");
+    setStockForms([{ id: Date.now(), type: '', isNew: false, newType: '', qty: '', weight: '', supplierPriceKg: '', newSellingPrice: '', supplierName: '', receiptFile: null }]);
     fetchData();
     setActiveModal(null);
   };
@@ -152,231 +162,206 @@ export default function AdminModule() {
     const target = inventory.find(i => i.type === spoilType);
     if (!target) return;
     
-    const lostValue = parseFloat(spoilWeight) * target.price_per_kg;
-    await supabase.from('spoilage_returns').insert({ durian_type: spoilType, action_type: spoilAction, quantity: parseInt(spoilQty), weight_kg: parseFloat(spoilWeight), lost_value: lostValue });
-    await supabase.from('durian_inventory').update({ total_durians: target.total_durians - parseInt(spoilQty), total_weight_kg: target.total_weight_kg - parseFloat(spoilWeight) }).eq('type', spoilType);
-
-    if (spoilAction === 'return_supplier' && refundAmount) {
-      await supabase.from('expenses').insert({ category: 'Supplier Refund', durian_type: spoilType, total_cost_rm: -Math.abs(parseFloat(refundAmount)), description: `Refund for ${spoilWeight}kg of ${spoilType}` });
+    if (parseInt(spoilQty) > target.total_durians || parseFloat(spoilWeight) > target.total_weight_kg) {
+      return showToast("❌ Cannot spoil more than you have in stock!", "error");
     }
-    showToast(`Action logged successfully!`);
-    setSpoilQty(''); setSpoilWeight(''); setSpoilType(''); setRefundAmount('');
-    fetchData();
-    setActiveModal(null);
+
+    if (window.confirm(`Log ${spoilAction} for ${spoilQty} pcs of ${spoilType}?`)) {
+      const lostValue = parseFloat(spoilWeight) * target.price_per_kg;
+      await supabase.from('spoilage_returns').insert({ durian_type: spoilType, action_type: spoilAction, quantity: parseInt(spoilQty), weight_kg: parseFloat(spoilWeight), lost_value: lostValue, user_name: adminName });
+      await supabase.from('durian_inventory').update({ total_durians: target.total_durians - parseInt(spoilQty), total_weight_kg: target.total_weight_kg - parseFloat(spoilWeight) }).eq('type', spoilType);
+      
+      showToast(`✅ Spoilage Action logged!`);
+      setSpoilQty(''); setSpoilWeight(''); setSpoilType('');
+      fetchData();
+      setActiveModal(null);
+    }
   };
 
   const handlePackStockIn = async () => {
-    if (!packItem || !packQty || !packCost) return showToast("Please fill all fields including cost", "error");
-    const target = packInventory.find(p => p.item_name === packItem);
-    if (!target) return;
-    await supabase.from('packaging_inventory').update({ quantity: target.quantity + parseInt(packQty) }).eq('item_name', packItem);
-    await supabase.from('expenses').insert({ category: 'Packaging', total_cost_rm: parseFloat(packCost), description: `${packQty}x ${packItem}` });
-    showToast(`Packaging stock & expense logged!`);
-    setPackQty(''); setPackItem(''); setPackCost('');
-    fetchData();
-    setActiveModal(null);
+    if (!packItem || !packQty || !packCost) return showToast("Please fill all fields", "error");
+    if (window.confirm(`Add ${packQty} units to ${packItem}?`)) {
+      const target = packInventory.find(p => p.item_name === packItem);
+      
+      if (target) {
+        await supabase.from('packaging_inventory').update({ quantity: target.quantity + parseInt(packQty) }).eq('item_name', packItem);
+      } else {
+        await supabase.from('packaging_inventory').insert({ item_name: packItem, quantity: parseInt(packQty) });
+      }
+
+      await supabase.from('expenses').insert({ category: 'Packaging', total_cost_rm: parseFloat(packCost), description: `${packQty}x ${packItem}`, user_name: adminName });
+      showToast(`✅ Packaging added!`);
+      setPackQty(''); setPackItem(''); setPackCost('');
+      fetchData();
+      setActiveModal(null);
+    }
   };
 
   const handleOpExpense = async () => {
-    if (!opAmount) return showToast("Please enter amount", "error");
-    let desc = opCategory;
-    if (opCategory === 'Staff Salary') {
-      if (!staffName) return showToast("Enter staff name", "error");
-      desc = `Staff: ${staffName} (${staffRate})`;
+    if (!opAmount) return showToast("Enter amount", "error");
+    if (window.confirm(`Log ${opCategory} expense of RM${opAmount}?`)) {
+      let desc = opCategory;
+      if (opCategory === 'Staff Salary') desc = `Staff: ${staffName} (${staffRate})`;
+      
+      const receiptUrl = await uploadFile(expenseReceipt);
+      
+      await supabase.from('expenses').insert({ category: opCategory, total_cost_rm: parseFloat(opAmount), description: desc, user_name: adminName, receipt_url: receiptUrl });
+      showToast(`✅ Expense logged!`);
+      setOpAmount(opCategory === 'Shop Rent' ? '1800' : ''); setStaffName(''); setExpenseReceipt(null);
+      fetchData();
+      setActiveModal(null);
     }
-    await supabase.from('expenses').insert({ category: opCategory, total_cost_rm: parseFloat(opAmount), description: desc });
-    showToast(`${opCategory} expense logged!`);
-    setOpAmount(opCategory === 'Shop Rent' ? '1800' : ''); setStaffName('');
-    fetchData();
-    setActiveModal(null);
   };
 
-  useEffect(() => {
-    if (opCategory === 'Shop Rent') setOpAmount('1800');
-    else setOpAmount('');
-  }, [opCategory]);
+  const deleteDurian = async (type: string) => {
+    if (window.confirm(`⚠️ WARNING: Are you sure you want to completely delete ${type} from inventory?`)) {
+      await supabase.from('durian_inventory').delete().eq('type', type);
+      showToast(`✅ Deleted ${type}`);
+      fetchData();
+    }
+  };
+
+  const deletePackaging = async (name: string) => {
+    if (window.confirm(`⚠️ WARNING: Are you sure you want to completely delete ${name}?`)) {
+      await supabase.from('packaging_inventory').delete().eq('item_name', name);
+      showToast(`✅ Deleted ${name}`);
+      fetchData();
+    }
+  };
 
   return (
-    <div className="pb-10 text-black bg-gray-50 min-h-screen relative">
-      
-      {/* TOAST POPUP */}
+    <div className="pb-10 text-black bg-gray-50 min-h-screen relative p-4">
       {toast.show && (
-        <div className={`fixed top-10 left-1/2 transform -translate-x-1/2 z-[100] px-8 py-4 rounded-2xl shadow-2xl text-white font-extrabold text-lg transition-all animate-bounce ${toast.type === 'error' ? 'bg-red-600' : 'bg-green-600'}`}>
-          {toast.type === 'error' ? '❌ ' : '✅ '} {toast.msg}
+        <div className={`fixed top-10 left-1/2 transform -translate-x-1/2 z-[100] px-8 py-4 rounded-2xl shadow-2xl font-extrabold text-lg transition-all animate-bounce ${toast.type === 'error' ? 'bg-yellow-400 text-black' : 'bg-green-600 text-white'}`}>
+          {toast.msg}
         </div>
       )}
 
-      {/* HEADER */}
-      <div className="flex flex-col md:flex-row justify-between items-center mb-8 gap-4 bg-white p-6 rounded-3xl shadow-sm border border-gray-200">
+      <div className="flex flex-col md:flex-row justify-between items-center mb-8 gap-4 bg-white p-6 rounded-3xl shadow-sm border-2 border-gray-200">
         <div>
-          <h1 className="text-4xl font-black text-gray-900 tracking-tight">Admin & Inventory Control</h1>
-          <p className="text-gray-500 font-medium mt-1">Manage stock, track spoilage, and log business expenses</p>
+          <h1 className="text-4xl font-black text-green-900 tracking-tight">Admin Control Panel</h1>
+          <p className="text-gray-500 font-bold mt-1">Logged in as: <span className="text-green-700">{adminName}</span></p>
         </div>
       </div>
       
-      {/* THE 6 BIG BUTTONS DASHBOARD */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        
-        <button onClick={() => setActiveModal('stockIn')} className="bg-blue-600 text-white p-10 rounded-3xl shadow-lg hover:bg-blue-700 hover:scale-105 transition-all text-left flex flex-col justify-between h-48 group">
-          <span className="text-4xl">📥</span>
-          <div><h3 className="text-2xl font-black group-hover:underline">Durian Stock In</h3><p className="font-medium text-blue-200 mt-1">Add new batches & log supplier cost</p></div>
+        <button onClick={() => setActiveModal('stockIn')} className="bg-green-600 text-white p-10 rounded-3xl shadow-lg hover:bg-green-700 hover:scale-105 transition-all text-left flex flex-col justify-between h-48 group">
+          <span className="text-4xl">📥</span><div><h3 className="text-2xl font-black group-hover:underline">Durian Stock In</h3><p className="font-medium text-green-100 mt-1">Add batches & supplier info</p></div>
         </button>
-
-        <button onClick={() => setActiveModal('spoilage')} className="bg-red-600 text-white p-10 rounded-3xl shadow-lg hover:bg-red-700 hover:scale-105 transition-all text-left flex flex-col justify-between h-48 group">
-          <span className="text-4xl">🗑️</span>
-          <div><h3 className="text-2xl font-black group-hover:underline">Spoilage & Returns</h3><p className="font-medium text-red-200 mt-1">Log rotten durians & supplier refunds</p></div>
+        <button onClick={() => setActiveModal('spoilage')} className="bg-yellow-500 text-black p-10 rounded-3xl shadow-lg hover:bg-yellow-600 hover:scale-105 transition-all text-left flex flex-col justify-between h-48 group">
+          <span className="text-4xl">🗑️</span><div><h3 className="text-2xl font-black group-hover:underline">Log Spoilage</h3><p className="font-bold text-yellow-900 mt-1">Record rotten/lost stock</p></div>
         </button>
-
-        <button onClick={() => setActiveModal('expenses')} className="bg-purple-600 text-white p-10 rounded-3xl shadow-lg hover:bg-purple-700 hover:scale-105 transition-all text-left flex flex-col justify-between h-48 group">
-          <span className="text-4xl">💸</span>
-          <div><h3 className="text-2xl font-black group-hover:underline">Log Expenses</h3><p className="font-medium text-purple-200 mt-1">Rent, Staff Salary, TNB & Petrol</p></div>
+        <button onClick={() => setActiveModal('expenses')} className="bg-gray-800 text-white p-10 rounded-3xl shadow-lg hover:bg-black hover:scale-105 transition-all text-left flex flex-col justify-between h-48 group">
+          <span className="text-4xl">💸</span><div><h3 className="text-2xl font-black group-hover:underline">Log Expenses</h3><p className="font-medium text-gray-300 mt-1">Rent, Staff, Bills & Receipts</p></div>
         </button>
-
-        <button onClick={() => setActiveModal('packStock')} className="bg-orange-500 text-white p-10 rounded-3xl shadow-lg hover:bg-orange-600 hover:scale-105 transition-all text-left flex flex-col justify-between h-48 group">
-          <span className="text-4xl">🛍️</span>
-          <div><h3 className="text-2xl font-black group-hover:underline">Packaging Restock</h3><p className="font-medium text-orange-200 mt-1">Add plastic bags & tupperware</p></div>
+        <button onClick={() => setActiveModal('packStock')} className="bg-gray-200 text-gray-800 p-10 rounded-3xl shadow-lg border-2 border-gray-300 hover:bg-gray-300 hover:scale-105 transition-all text-left flex flex-col justify-between h-48 group">
+          <span className="text-4xl">🛍️</span><div><h3 className="text-2xl font-black group-hover:underline">Packaging Restock</h3><p className="font-bold text-gray-600 mt-1">Add bags & tupperware</p></div>
         </button>
-
-        <button onClick={() => setActiveModal('manageDurian')} className="bg-green-600 text-white p-10 rounded-3xl shadow-lg hover:bg-green-700 hover:scale-105 transition-all text-left flex flex-col justify-between h-48 group">
-          <span className="text-4xl">✏️</span>
-          <div><h3 className="text-2xl font-black group-hover:underline">Manage Durians</h3><p className="font-medium text-green-200 mt-1">Quickly edit current stock & prices</p></div>
+        <button onClick={() => setActiveModal('manageDurian')} className="bg-white border-4 border-green-600 text-green-900 p-10 rounded-3xl shadow-lg hover:bg-green-50 hover:scale-105 transition-all text-left flex flex-col justify-between h-48 group">
+          <span className="text-4xl">✏️</span><div><h3 className="text-2xl font-black group-hover:underline">Edit Durians</h3><p className="font-bold text-green-700 mt-1">Modify/Delete Inventory</p></div>
         </button>
-
-        <button onClick={() => setActiveModal('managePack')} className="bg-teal-600 text-white p-10 rounded-3xl shadow-lg hover:bg-teal-700 hover:scale-105 transition-all text-left flex flex-col justify-between h-48 group">
-          <span className="text-4xl">📦</span>
-          <div><h3 className="text-2xl font-black group-hover:underline">Manage Packaging</h3><p className="font-medium text-teal-200 mt-1">Override packaging inventory amounts</p></div>
+        <button onClick={() => setActiveModal('managePack')} className="bg-white border-4 border-yellow-500 text-yellow-900 p-10 rounded-3xl shadow-lg hover:bg-yellow-50 hover:scale-105 transition-all text-left flex flex-col justify-between h-48 group">
+          <span className="text-4xl">📦</span><div><h3 className="text-2xl font-black group-hover:underline">Edit Packaging</h3><p className="font-bold text-yellow-800 mt-1">Modify/Delete Inventory</p></div>
         </button>
       </div>
-
 
       {/* --- MODALS --- */}
 
-      {/* 1. DURIAN STOCK IN MODAL */}
       {activeModal === 'stockIn' && (
         <Modal title="📥 Durian Stock In" onClose={() => setActiveModal(null)}>
-          <div className="flex justify-end mb-4">
-            <button onClick={handleAddStockRow} className="bg-blue-600 text-white font-bold px-5 py-2.5 rounded-xl hover:bg-blue-700 shadow-md transition-all active:scale-95">
-              + Add Another Durian
-            </button>
-          </div>
+          <button onClick={handleAddStockRow} className="mb-4 bg-gray-200 text-gray-800 font-bold px-5 py-2.5 rounded-xl hover:bg-yellow-400 shadow-sm transition-colors w-full md:w-auto">+ Add Another Durian</button>
           <div className="space-y-6">
-            {stockForms.map((form, index) => {
-              const autoTotal = (parseFloat(form.weight || '0') * parseFloat(form.supplierPriceKg || '0')).toFixed(2);
-              return (
-              <div key={form.id} className="p-6 bg-white border border-gray-200 rounded-2xl relative shadow-sm">
-                {stockForms.length > 1 && ( <button onClick={() => handleRemoveStockRow(form.id)} className="absolute top-4 right-4 text-red-500 font-bold hover:text-red-700 bg-red-50 px-3 py-1 rounded-lg transition-colors">✕ Remove</button> )}
-                <h3 className="font-extrabold mb-4 text-gray-800 text-lg border-b pb-2">Durian #{index + 1}</h3>
-                <div className="grid md:grid-cols-5 gap-4 items-start">
+            {stockForms.map((form, index) => (
+              <div key={form.id} className="p-6 bg-gray-50 border-2 border-gray-200 rounded-2xl relative shadow-sm">
+                {stockForms.length > 1 && ( <button onClick={() => handleRemoveStockRow(form.id)} className="absolute top-4 right-4 text-red-500 font-bold">✕ Remove</button> )}
+                <h3 className="font-extrabold mb-4 text-green-900 text-lg border-b-2 border-gray-200 pb-2">Durian #{index + 1}</h3>
+                <div className="grid md:grid-cols-5 gap-4">
                   <div className="md:col-span-1">
-                    <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Durian Type</label>
+                    <label className="block text-xs font-bold text-gray-500 uppercase">Durian Type</label>
                     {!form.isNew ? (
-                      <select value={form.type} onChange={(e) => { if (e.target.value === 'ADD_NEW') { setStockForms(prev => prev.map(f => f.id === form.id ? { ...f, isNew: true, type: '', newType: '' } : f)); } else { updateStockForm(form.id, 'type', e.target.value); } }} className={inputClass}>
-                        <option value="">Select Type...</option>
-                        {inventory.map(i => <option key={i.type} value={i.type}>{i.type}</option>)}
-                        <option value="ADD_NEW" className="font-bold text-blue-600">+ New Type</option>
+                      <select value={form.type} onChange={(e) => { if (e.target.value === 'ADD_NEW') updateStockForm(form.id, 'isNew', true); else updateStockForm(form.id, 'type', e.target.value); }} className={inputClass}>
+                        <option value="">Select Type...</option>{inventory.map(i => <option key={i.type} value={i.type}>{i.type}</option>)}<option value="ADD_NEW" className="font-bold text-green-600">+ New Type</option>
                       </select>
                     ) : (
-                      <div className="flex gap-2">
-                        <input type="text" placeholder="New name..." value={form.newType} onChange={e=>updateStockForm(form.id, 'newType', e.target.value)} className={inputClass} />
-                        <button onClick={() => updateStockForm(form.id, 'isNew', false)} className="bg-gray-200 px-4 rounded-xl font-bold hover:bg-gray-300 text-gray-700 transition-colors">✕</button>
-                      </div>
+                      <div className="flex gap-2"><input type="text" placeholder="New name..." onChange={e=>updateStockForm(form.id, 'newType', e.target.value)} className={inputClass} /><button onClick={() => updateStockForm(form.id, 'isNew', false)} className="bg-gray-300 px-4 rounded-xl font-bold">✕</button></div>
                     )}
                   </div>
-                  <div><label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Quantity</label><input type="number" placeholder="pcs" value={form.qty} onChange={e=>updateStockForm(form.id, 'qty', e.target.value)} className={inputClass} /></div>
-                  <div><label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Weight</label><input type="number" step="0.1" placeholder="kg" value={form.weight} onChange={e=>updateStockForm(form.id, 'weight', e.target.value)} className={inputClass} /></div>
-                  <div><label className="block text-xs font-bold text-green-600 uppercase tracking-wider mb-1">Selling Price</label><input type="number" step="0.1" placeholder="RM/kg" value={form.newSellingPrice} onChange={e=>updateStockForm(form.id, 'newSellingPrice', e.target.value)} className="w-full border border-green-300 p-3 rounded-xl text-black bg-green-50 focus:bg-white focus:ring-2 focus:ring-green-200 outline-none transition-all shadow-inner font-bold" /></div>
-                  <div className="flex flex-col"><label className="block text-xs font-bold text-red-600 uppercase tracking-wider mb-1">Supplier Cost</label><input type="number" step="0.1" placeholder="RM/kg" value={form.supplierPriceKg} onChange={e=>updateStockForm(form.id, 'supplierPriceKg', e.target.value)} className="w-full border border-red-300 p-3 rounded-xl text-black bg-red-50 focus:bg-white focus:ring-2 focus:ring-red-200 outline-none transition-all shadow-inner font-bold" /><span className="text-sm text-red-700 font-extrabold mt-2 text-right">Auto Total: RM {autoTotal}</span></div>
+                  <div><label className="block text-xs font-bold text-gray-500 uppercase">Quantity</label><input type="number" onChange={e=>updateStockForm(form.id, 'qty', e.target.value)} className={inputClass} /></div>
+                  <div><label className="block text-xs font-bold text-gray-500 uppercase">Weight</label><input type="number" step="0.1" onChange={e=>updateStockForm(form.id, 'weight', e.target.value)} className={inputClass} /></div>
+                  <div><label className="block text-xs font-bold text-gray-500 uppercase">Supplier Price/kg</label><input type="number" step="0.1" onChange={e=>updateStockForm(form.id, 'supplierPriceKg', e.target.value)} className={inputClass} /></div>
+                  <div><label className="block text-xs font-bold text-gray-500 uppercase">Selling Price/kg</label><input type="number" step="0.1" onChange={e=>updateStockForm(form.id, 'newSellingPrice', e.target.value)} className="w-full border-2 border-green-300 p-3 rounded-xl bg-green-50 font-bold" /></div>
+                </div>
+                <div className="grid md:grid-cols-2 gap-4 mt-4 border-t-2 border-gray-200 pt-4">
+                  <div><label className="block text-xs font-bold text-gray-500 uppercase">Supplier Name (Optional)</label><input type="text" onChange={e=>updateStockForm(form.id, 'supplierName', e.target.value)} className={inputClass} placeholder="Ah Kow Farm" /></div>
+                  <div><label className="block text-xs font-bold text-gray-500 uppercase">Upload Receipt (Optional)</label><input type="file" accept="image/*,.pdf" onChange={e=>updateStockForm(form.id, 'receiptFile', e.target.files?.[0] || null)} className={inputClass} /></div>
                 </div>
               </div>
-            )})}
-            <button onClick={submitMultiStockIn} className="w-full bg-blue-600 text-white font-extrabold py-4 rounded-2xl hover:bg-blue-700 text-xl shadow-md transition-all active:scale-[0.98]">Submit All Stock & Log Expenses</button>
+            ))}
+            <button onClick={submitMultiStockIn} className={modalBtnClass}>Submit All Stock In</button>
           </div>
         </Modal>
       )}
 
-      {/* 2. SPOILAGE MODAL */}
       {activeModal === 'spoilage' && (
-        <Modal title="🗑️ Spoilage & Returns" onClose={() => setActiveModal(null)}>
-          <div className="p-2 space-y-5">
-            <select value={spoilType} onChange={e=>setSpoilType(e.target.value)} className={inputClass}><option value="">Select Durian Type...</option>{inventory.map(i => <option key={i.type} value={i.type}>{i.type}</option>)}</select>
-            <select value={spoilAction} onChange={e=>setSpoilAction(e.target.value)} className={inputClass}><option value="spoilage">Spoilage (Rotten/Lost)</option><option value="return_supplier">Return to Supplier</option></select>
+        <Modal title="🗑️ Log Spoilage" onClose={() => setActiveModal(null)}>
+          <div className="space-y-4">
+            <select value={spoilType} onChange={e=>setSpoilType(e.target.value)} className={inputClass}><option value="">Select Durian...</option>{inventory.map(i => <option key={i.type} value={i.type}>{i.type}</option>)}</select>
             <div className="grid grid-cols-2 gap-4">
-              <input type="number" placeholder="Qty Lost (pcs)" value={spoilQty} onChange={e=>setSpoilQty(e.target.value)} className={inputClass} />
+              <input type="number" placeholder="Qty Lost" value={spoilQty} onChange={e=>setSpoilQty(e.target.value)} className={inputClass} />
               <input type="number" step="0.1" placeholder="Weight Lost (kg)" value={spoilWeight} onChange={e=>setSpoilWeight(e.target.value)} className={inputClass} />
             </div>
-            {spoilAction === 'return_supplier' && (
-              <div className="bg-green-50 p-6 rounded-xl border border-green-200 shadow-sm mt-4">
-                <label className="text-sm font-bold text-green-900 block mb-2">Supplier Refund Amount (RM)</label>
-                <input type="number" step="0.1" placeholder="RM refunded..." value={refundAmount} onChange={e=>setRefundAmount(e.target.value)} className="w-full border border-green-300 p-3 rounded-xl bg-white text-black focus:ring-2 focus:ring-green-200 outline-none font-bold" />
-                <p className="text-xs text-green-700 mt-2 font-medium">This will automatically balance out your total expenses.</p>
-              </div>
-            )}
-            <button onClick={handleSpoilage} className="w-full bg-red-600 text-white font-bold py-4 rounded-xl hover:bg-red-700 shadow-md transition-all active:scale-[0.98] mt-4 text-lg">Submit Action</button>
+            <button onClick={handleSpoilage} className={modalBtnClass}>Log Spoilage</button>
           </div>
         </Modal>
       )}
 
-      {/* 3. EXPENSES MODAL */}
       {activeModal === 'expenses' && (
-        <Modal title="💸 Log Operational Expenses" onClose={() => setActiveModal(null)}>
-          <div className="p-2 space-y-5">
+        <Modal title="💸 Log Expenses" onClose={() => setActiveModal(null)}>
+          <div className="space-y-4">
             <select value={opCategory} onChange={e=>setOpCategory(e.target.value)} className={inputClass}>
-               <option value="Staff Salary">👨‍💼 Staff Salary</option><option value="Shop Rent">🏢 Shop Rent</option><option value="Utilities (TNB)">⚡ Utilities</option><option value="Petrol">⛽ Petrol</option>
+               <option value="Staff Salary">👨‍💼 Staff Salary</option><option value="Shop Rent">🏢 Shop Rent</option><option value="Utilities">⚡ Utilities</option><option value="Petrol">⛽ Petrol</option><option value="Other">Other</option>
             </select>
             {opCategory === 'Staff Salary' && (
-              <div className="grid grid-cols-2 gap-4 bg-gray-100 p-6 rounded-2xl border border-gray-200 mt-4">
+              <div className="flex gap-4">
                 <input type="text" placeholder="Staff Name" value={staffName} onChange={e=>setStaffName(e.target.value)} className={inputClass} />
-                <select value={staffRate} onChange={e=>setStaffRate(e.target.value)} className={inputClass}>
-                  <option value="per hour">Per Hour</option><option value="per day">Per Day</option><option value="per week">Per Week</option><option value="per month">Per Month</option>
-                </select>
+                <select value={staffRate} onChange={e=>setStaffRate(e.target.value)} className={inputClass}><option value="per hour">Per Hour</option><option value="per month">Per Month</option></select>
               </div>
             )}
-            <div className="pt-4">
-              <label className="block text-sm font-bold text-gray-700 mb-2">Total Expense Amount</label>
-              <input type="number" step="0.1" placeholder="RM 0.00" value={opAmount} onChange={e=>setOpAmount(e.target.value)} className="w-full border border-red-300 p-5 rounded-2xl text-black bg-red-50 text-3xl font-black focus:bg-white focus:ring-2 focus:ring-red-200 outline-none transition-all shadow-inner" />
+            <input type="number" step="0.1" placeholder="Total RM" value={opAmount} onChange={e=>setOpAmount(e.target.value)} className="w-full border-2 border-yellow-300 p-5 rounded-2xl bg-yellow-50 text-2xl font-black" />
+            <div>
+              <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Upload Receipt (Optional)</label>
+              <input type="file" accept="image/*,.pdf" onChange={e=>setExpenseReceipt(e.target.files?.[0] || null)} className={inputClass} />
             </div>
-            <button onClick={handleOpExpense} className="w-full bg-purple-600 text-white font-bold py-4 rounded-xl hover:bg-purple-700 shadow-md transition-all active:scale-[0.98] mt-4 text-lg">Log Business Expense</button>
+            <button onClick={handleOpExpense} className={modalBtnClass}>Log Expense</button>
           </div>
         </Modal>
       )}
 
-      {/* 4. PACKAGING MODAL */}
       {activeModal === 'packStock' && (
-        <Modal title="🛍️ Packaging Stock In" onClose={() => setActiveModal(null)}>
-          <div className="p-2 space-y-5">
-            <div className="bg-orange-50 p-4 rounded-xl border border-orange-200 flex justify-around">
-               <div className="text-center"><span className="block text-xs font-bold text-orange-800 uppercase">Plastic Bags</span><span className="text-2xl font-black text-orange-600">{packInventory.find(p=>p.item_name==='Plastic Bag')?.quantity || 0}</span></div>
-               <div className="text-center"><span className="block text-xs font-bold text-orange-800 uppercase">Tup. Size M</span><span className="text-2xl font-black text-orange-600">{packInventory.find(p=>p.item_name==='Tupperware M')?.quantity || 0}</span></div>
-               <div className="text-center"><span className="block text-xs font-bold text-orange-800 uppercase">Tup. Size L</span><span className="text-2xl font-black text-orange-600">{packInventory.find(p=>p.item_name==='Tupperware L')?.quantity || 0}</span></div>
+        <Modal title="🛍️ Packaging Restock" onClose={() => setActiveModal(null)}>
+          <div className="space-y-4">
+            <div className="flex gap-4 mb-4">
+               {packInventory.map(p => ( <div key={p.id} className="flex-1 bg-gray-100 p-4 rounded-xl text-center border-2 border-gray-300"><span className="block text-xs font-bold uppercase">{p.item_name}</span><span className="text-xl font-black">{p.quantity}</span></div> ))}
             </div>
-
-            <select value={packItem} onChange={e=>setPackItem(e.target.value)} className={inputClass}>
-              <option value="">Select Packaging Item...</option><option value="Plastic Bag">Plastic Bag</option><option value="Tupperware M">Tupperware Size M</option><option value="Tupperware L">Tupperware Size L</option>
-            </select>
-            <div className="grid grid-cols-2 gap-4">
+            <select value={packItem} onChange={e=>setPackItem(e.target.value)} className={inputClass}><option value="">Select Item...</option><option value="Plastic Bag">Plastic Bag</option><option value="Tupperware M">Tupperware M</option><option value="Tupperware L">Tupperware L</option></select>
+            <div className="flex gap-4">
               <input type="number" placeholder="Qty Add" value={packQty} onChange={e=>setPackQty(e.target.value)} className={inputClass} />
-              <input type="number" step="0.1" placeholder="Cost (RM)" value={packCost} onChange={e=>setPackCost(e.target.value)} className="w-full border border-red-300 bg-red-50 p-3 rounded-xl text-black focus:bg-white focus:ring-2 focus:ring-red-200 outline-none transition-all shadow-inner font-bold" />
+              <input type="number" step="0.1" placeholder="Cost (RM)" value={packCost} onChange={e=>setPackCost(e.target.value)} className={inputClass} />
             </div>
-            <button onClick={handlePackStockIn} className="w-full bg-orange-500 text-white font-bold py-4 rounded-xl hover:bg-orange-600 shadow-md transition-all active:scale-[0.98] mt-4 text-lg">Add Packaging & Log Cost</button>
+            <button onClick={handlePackStockIn} className={modalBtnClass}>Add Packaging Stock</button>
           </div>
         </Modal>
       )}
 
-      {/* 5. MANAGE DURIAN MODAL */}
       {activeModal === 'manageDurian' && (
-        <Modal title="✏️ Manage Durian Inventory" onClose={() => setActiveModal(null)}>
-          <table className="w-full text-left border-collapse whitespace-nowrap">
-            <thead>
-              <tr className="bg-white border-b-2 border-gray-200">
-                <th className="p-4 font-bold text-gray-600">Type</th><th className="p-4 font-bold text-gray-600">Qty (pcs)</th><th className="p-4 font-bold text-gray-600">Weight (kg)</th><th className="p-4 font-bold text-gray-600">Price/kg</th><th className="p-4 font-bold text-gray-600 text-center">Action</th>
-              </tr>
-            </thead>
+        <Modal title="✏️ Edit/Delete Durians" onClose={() => setActiveModal(null)}>
+          <table className="w-full text-left">
+            <thead><tr className="border-b-4 border-green-600"><th className="p-4">Type</th><th className="p-4 text-center">Qty</th><th className="p-4 text-center">Weight</th><th className="p-4 text-center">Price</th><th className="p-4 text-center">Actions</th></tr></thead>
             <tbody>
               {inventory.map(item => (
-                <DurianRow key={item.type} item={item} onSave={async (type, data) => {
+                <DurianRow key={item.type} item={item} onDelete={deleteDurian} onSave={async (type, data) => {
                     await supabase.from('durian_inventory').update({ total_durians: parseInt(data.total_durians), total_weight_kg: parseFloat(data.total_weight_kg), price_per_kg: parseFloat(data.price_per_kg) }).eq('type', type);
-                    showToast(`${type} updated!`);
-                    fetchData();
+                    showToast(`✅ ${type} updated!`); fetchData();
                 }} />
               ))}
             </tbody>
@@ -384,28 +369,21 @@ export default function AdminModule() {
         </Modal>
       )}
 
-      {/* 6. MANAGE PACKAGING MODAL */}
       {activeModal === 'managePack' && (
-        <Modal title="📦 Manage Packaging Inventory" onClose={() => setActiveModal(null)}>
-          <table className="w-full text-left border-collapse whitespace-nowrap">
-            <thead>
-              <tr className="bg-white border-b-2 border-gray-200">
-                <th className="p-4 font-bold text-gray-600">Item Name</th><th className="p-4 font-bold text-gray-600">Current Qty</th><th className="p-4 font-bold text-gray-600 text-center">Action</th>
-              </tr>
-            </thead>
+        <Modal title="📦 Edit/Delete Packaging" onClose={() => setActiveModal(null)}>
+          <table className="w-full text-left">
+            <thead><tr className="border-b-4 border-yellow-500"><th className="p-4">Item Name</th><th className="p-4 text-center">Qty</th><th className="p-4 text-center">Actions</th></tr></thead>
             <tbody>
               {packInventory.map(item => (
-                <PackRow key={item.item_name} item={item} onSave={async (name, qty) => {
+                <PackRow key={item.item_name} item={item} onDelete={deletePackaging} onSave={async (name, qty) => {
                     await supabase.from('packaging_inventory').update({ quantity: parseInt(qty) }).eq('item_name', name);
-                    showToast(`${name} updated!`);
-                    fetchData();
+                    showToast(`✅ ${name} updated!`); fetchData();
                 }} />
               ))}
             </tbody>
           </table>
         </Modal>
       )}
-
     </div>
   );
 }

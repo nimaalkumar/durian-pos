@@ -1,0 +1,164 @@
+'use client'
+import { useState, useEffect } from 'react';
+import { supabase } from '../../lib/supabase';
+import { useRouter } from 'next/navigation';
+
+export default function TodaySalesPage() {
+  const router = useRouter();
+  const [sales, setSales] = useState<any[]>([]);
+  const [userRole, setUserRole] = useState<string>('cashier'); // default
+  
+  // EDIT MODAL STATE
+  const [editSale, setEditSale] = useState<any>(null);
+  const [editTotal, setEditTotal] = useState('');
+  const [editPayment, setEditPayment] = useState('');
+
+  const [toast, setToast] = useState<{show: boolean, msg: string, type: 'error'|'success'}>({show: false, msg: '', type: 'success'});
+  const showToast = (msg: string, type: 'error'|'success' = 'success') => {
+    setToast({show: true, msg, type});
+    setTimeout(() => setToast({show: false, msg: '', type: 'success'}), 4000);
+  };
+
+  const fetchTodaySales = async () => {
+    // 1. Get Role
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) return router.push('/auth');
+    const { data: profile } = await supabase.from('profiles').select('role').eq('id', session.user.id).single();
+    if (profile?.role) setUserRole(profile.role);
+
+    // 2. Fetch Sales where created_at is TODAY
+    const today = new Date();
+    today.setHours(0, 0, 0, 0); // Start of today
+
+    const { data } = await supabase
+      .from('sales')
+      .select('*')
+      .gte('created_at', today.toISOString())
+      .order('created_at', { ascending: false });
+
+    if (data) setSales(data);
+  };
+
+  useEffect(() => {
+    fetchTodaySales();
+  }, [router]);
+
+  const handleDelete = async (id: string) => {
+    if (window.confirm("⚠️ WARNING: Are you sure you want to completely delete this sale? This cannot be undone.")) {
+      const { error } = await supabase.from('sales').delete().eq('id', id);
+      if (error) showToast(error.message, "error");
+      else {
+        showToast("✅ Sale deleted successfully!");
+        fetchTodaySales();
+      }
+    }
+  };
+
+  const handleSaveEdit = async () => {
+    const { error } = await supabase.from('sales').update({
+      total_price: parseFloat(editTotal),
+      payment_method: editPayment
+    }).eq('id', editSale.id);
+
+    if (error) showToast(error.message, "error");
+    else {
+      showToast("✅ Sale updated successfully!");
+      setEditSale(null);
+      fetchTodaySales();
+    }
+  };
+
+  const totalToday = sales.reduce((sum, s) => sum + Number(s.total_price), 0);
+
+  return (
+    <div className="pb-10 bg-gray-100 min-h-screen p-4 text-black">
+      {toast.show && (
+        <div className={`fixed top-10 left-1/2 transform -translate-x-1/2 z-[100] px-8 py-4 rounded-2xl shadow-2xl font-extrabold text-lg transition-all animate-bounce ${toast.type === 'error' ? 'bg-yellow-400 text-black' : 'bg-green-600 text-white'}`}>
+          {toast.msg}
+        </div>
+      )}
+
+      <div className="flex justify-between items-center mb-8 bg-white p-6 rounded-3xl shadow-sm border border-gray-200">
+        <div>
+          <h1 className="text-4xl font-black text-green-900 tracking-tight">Today's Sales Dashboard</h1>
+          <p className="text-gray-500 font-bold mt-1">Live tracking of today's revenue</p>
+        </div>
+        <div className="bg-green-50 px-6 py-3 rounded-2xl border-2 border-green-200">
+           <span className="block text-xs font-bold text-green-800 uppercase text-center">Today's Total</span>
+           <span className="text-3xl font-black text-green-700">RM {totalToday.toFixed(2)}</span>
+        </div>
+      </div>
+
+      <div className="bg-white rounded-3xl shadow-sm border border-gray-200 overflow-hidden">
+        <table className="w-full text-left">
+          <thead>
+            <tr className="bg-gray-100 border-b-4 border-gray-300">
+              <th className="p-4 text-gray-700">Order No & Time</th>
+              <th className="p-4 text-gray-700">Items</th>
+              <th className="p-4 text-gray-700">Payment</th>
+              <th className="p-4 text-right text-gray-700">Total (RM)</th>
+              {userRole === 'super_admin' && <th className="p-4 text-center text-gray-700">Admin Actions</th>}
+            </tr>
+          </thead>
+          <tbody>
+            {sales.map((sale) => (
+              <tr key={sale.id} className="border-b border-gray-200 hover:bg-yellow-50 transition-colors">
+                <td className="p-4">
+                  <div className="font-black text-green-800">{sale.order_number || 'N/A'}</div>
+                  <div className="text-sm font-bold text-gray-500">{new Date(sale.created_at).toLocaleTimeString()}</div>
+                  <div className="text-xs uppercase text-gray-400 mt-1">Cashier: {sale.cashier_name || 'System'}</div>
+                </td>
+                <td className="p-4 font-bold text-gray-800">
+                  {sale.cart_items ? sale.cart_items.map((i:any, idx:number) => <div key={idx}>{i.type} <span className="text-sm text-gray-500">({i.weight}kg)</span></div>) : sale.durian_type}
+                </td>
+                <td className="p-4 font-bold text-gray-600 uppercase">
+                  {sale.payment_method === 'cash' ? '💵 Cash' : '📱 QR'}
+                </td>
+                <td className="p-4 text-right font-black text-xl text-green-700">
+                  RM {sale.total_price.toFixed(2)}
+                </td>
+                
+                {/* ADMIN ONLY CONTROLS */}
+                {userRole === 'super_admin' && (
+                  <td className="p-4 text-center">
+                    <button onClick={() => { setEditSale(sale); setEditTotal(sale.total_price); setEditPayment(sale.payment_method); }} className="bg-gray-200 text-gray-800 px-4 py-2 rounded-lg font-bold hover:bg-yellow-400 mr-2 shadow-sm transition-colors">Edit</button>
+                    <button onClick={() => handleDelete(sale.id)} className="bg-red-100 text-red-600 border border-red-200 px-4 py-2 rounded-lg font-bold hover:bg-red-600 hover:text-white shadow-sm transition-colors">Delete</button>
+                  </td>
+                )}
+              </tr>
+            ))}
+            {sales.length === 0 && <tr><td colSpan={5} className="p-8 text-center text-gray-500 font-bold text-lg bg-gray-50">No sales recorded today yet.</td></tr>}
+          </tbody>
+        </table>
+      </div>
+
+      {/* EDIT MODAL (ADMIN ONLY) */}
+      {editSale && (
+        <div className="fixed inset-0 bg-gray-900/80 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
+          <div className="bg-white w-full max-w-md rounded-3xl shadow-2xl p-6">
+            <h2 className="text-2xl font-black text-green-900 mb-6 border-b-2 border-gray-200 pb-2">✏️ Edit Sale: {editSale.order_number}</h2>
+            
+            <div className="space-y-4">
+              <div>
+                <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Total Price (RM)</label>
+                <input type="number" step="0.1" value={editTotal} onChange={(e) => setEditTotal(e.target.value)} className="w-full border-2 border-gray-300 p-3 rounded-xl font-black text-xl bg-gray-50 focus:ring-2 focus:ring-green-400 outline-none" />
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Payment Method</label>
+                <select value={editPayment} onChange={(e) => setEditPayment(e.target.value)} className="w-full border-2 border-gray-300 p-3 rounded-xl font-bold bg-gray-50 focus:ring-2 focus:ring-green-400 outline-none">
+                  <option value="cash">💵 Cash</option>
+                  <option value="qr">📱 QR DuitNow</option>
+                </select>
+              </div>
+            </div>
+
+            <div className="flex gap-4 mt-8">
+              <button onClick={() => setEditSale(null)} className="flex-1 bg-gray-200 text-gray-800 font-bold py-3 rounded-xl hover:bg-gray-300 transition-colors">Cancel</button>
+              <button onClick={handleSaveEdit} className="flex-1 bg-green-600 text-white font-extrabold py-3 rounded-xl hover:bg-green-700 shadow-md transition-colors active:scale-95">Save Changes</button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
