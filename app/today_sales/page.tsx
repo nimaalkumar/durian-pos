@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation';
 export default function TodaySalesPage() {
   const router = useRouter();
   const [sales, setSales] = useState<any[]>([]);
-  const [userRole, setUserRole] = useState<string>('cashier'); // default
+  const [userRole, setUserRole] = useState<string>('cashier'); // default role
   
   // EDIT MODAL STATE
   const [editSale, setEditSale] = useState<any>(null);
@@ -20,7 +20,7 @@ export default function TodaySalesPage() {
   };
 
   const fetchTodaySales = async () => {
-    // 1. Get Role
+    // 1. Get User Role to lock down Edit/Delete
     const { data: { session } } = await supabase.auth.getSession();
     if (!session) return router.push('/auth');
     const { data: profile } = await supabase.from('profiles').select('role').eq('id', session.user.id).single();
@@ -44,6 +44,9 @@ export default function TodaySalesPage() {
   }, [router]);
 
   const handleDelete = async (id: string) => {
+    // Only execute if super_admin
+    if (userRole !== 'super_admin') return showToast("Unauthorized", "error");
+
     if (window.confirm("⚠️ WARNING: Are you sure you want to completely delete this sale? This cannot be undone.")) {
       const { error } = await supabase.from('sales').delete().eq('id', id);
       if (error) showToast(error.message, "error");
@@ -55,6 +58,9 @@ export default function TodaySalesPage() {
   };
 
   const handleSaveEdit = async () => {
+    // Only execute if super_admin
+    if (userRole !== 'super_admin') return showToast("Unauthorized", "error");
+
     const { error } = await supabase.from('sales').update({
       total_price: parseFloat(editTotal),
       payment_method: editPayment
@@ -78,14 +84,18 @@ export default function TodaySalesPage() {
         </div>
       )}
 
-      <div className="flex justify-between items-center mb-8 bg-white p-6 rounded-3xl shadow-sm border border-gray-200">
-        <div>
-          <h1 className="text-4xl font-black text-green-900 tracking-tight">Today's Sales Dashboard</h1>
-          <p className="text-gray-500 font-bold mt-1">Live tracking of today's revenue</p>
+      <div className="flex flex-col md:flex-row justify-between items-center mb-8 gap-4 bg-white p-6 rounded-3xl shadow-sm border border-gray-200">
+        <div className="flex items-center gap-4">
+          {/* Back button to return to dashboard */}
+          <button onClick={() => router.back()} className="bg-gray-200 hover:bg-gray-300 text-gray-800 p-3 rounded-xl transition-colors font-black">← Back</button>
+          <div>
+            <h1 className="text-4xl font-black text-green-900 tracking-tight">Today's Sales Dashboard</h1>
+            <p className="text-gray-500 font-bold mt-1">Live tracking of today's revenue</p>
+          </div>
         </div>
-        <div className="bg-green-50 px-6 py-3 rounded-2xl border-2 border-green-200">
-           <span className="block text-xs font-bold text-green-800 uppercase text-center">Today's Total</span>
-           <span className="text-3xl font-black text-green-700">RM {totalToday.toFixed(2)}</span>
+        <div className="bg-green-50 px-8 py-4 rounded-2xl border-2 border-green-200 shadow-sm text-center">
+           <span className="block text-sm font-bold text-green-800 uppercase">Today's Total Revenue</span>
+           <span className="text-4xl font-black text-green-700">RM {totalToday.toFixed(2)}</span>
         </div>
       </div>
 
@@ -94,10 +104,11 @@ export default function TodaySalesPage() {
           <thead>
             <tr className="bg-gray-100 border-b-4 border-gray-300">
               <th className="p-4 text-gray-700">Order No & Time</th>
-              <th className="p-4 text-gray-700">Items</th>
-              <th className="p-4 text-gray-700">Payment</th>
+              <th className="p-4 text-gray-700">Items Ordered</th>
+              <th className="p-4 text-gray-700">Payment & Type</th>
               <th className="p-4 text-right text-gray-700">Total (RM)</th>
-              {userRole === 'super_admin' && <th className="p-4 text-center text-gray-700">Admin Actions</th>}
+              {/* Only show Admin column header if user is admin */}
+              {userRole === 'super_admin' && <th className="p-4 text-center text-gray-700 border-l-2 border-gray-200">Admin Actions</th>}
             </tr>
           </thead>
           <tbody>
@@ -105,24 +116,25 @@ export default function TodaySalesPage() {
               <tr key={sale.id} className="border-b border-gray-200 hover:bg-yellow-50 transition-colors">
                 <td className="p-4">
                   <div className="font-black text-green-800">{sale.order_number || 'N/A'}</div>
-                  <div className="text-sm font-bold text-gray-500">{new Date(sale.created_at).toLocaleTimeString()}</div>
+                  <div className="text-sm font-bold text-gray-500">{new Date(sale.created_at).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}</div>
                   <div className="text-xs uppercase text-gray-400 mt-1">Cashier: {sale.cashier_name || 'System'}</div>
                 </td>
                 <td className="p-4 font-bold text-gray-800">
-                  {sale.cart_items ? sale.cart_items.map((i:any, idx:number) => <div key={idx}>{i.type} <span className="text-sm text-gray-500">({i.weight}kg)</span></div>) : sale.durian_type}
+                  {sale.cart_items ? sale.cart_items.map((i:any, idx:number) => <div key={idx}>• {i.type} <span className="text-sm text-gray-500 font-medium ml-1">({i.weight}kg)</span></div>) : sale.durian_type}
                 </td>
-                <td className="p-4 font-bold text-gray-600 uppercase">
-                  {sale.payment_method === 'cash' ? '💵 Cash' : '📱 QR'}
+                <td className="p-4 font-bold text-gray-600 uppercase text-xs">
+                  <div className="mb-1 text-green-800">{sale.order_type === 'eat_here' ? `Eat (Table ${sale.table_number})` : sale.order_type === 'pack' ? 'Pack' : 'Delivery'}</div>
+                  <div>{sale.payment_method === 'cash' ? '💵 Cash' : '📱 QR'}</div>
                 </td>
                 <td className="p-4 text-right font-black text-xl text-green-700">
                   RM {sale.total_price.toFixed(2)}
                 </td>
                 
-                {/* ADMIN ONLY CONTROLS */}
+                {/* ADMIN ONLY CONTROLS - Strictly locked to super_admin */}
                 {userRole === 'super_admin' && (
-                  <td className="p-4 text-center">
-                    <button onClick={() => { setEditSale(sale); setEditTotal(sale.total_price); setEditPayment(sale.payment_method); }} className="bg-gray-200 text-gray-800 px-4 py-2 rounded-lg font-bold hover:bg-yellow-400 mr-2 shadow-sm transition-colors">Edit</button>
-                    <button onClick={() => handleDelete(sale.id)} className="bg-red-100 text-red-600 border border-red-200 px-4 py-2 rounded-lg font-bold hover:bg-red-600 hover:text-white shadow-sm transition-colors">Delete</button>
+                  <td className="p-4 text-center border-l-2 border-gray-100 bg-gray-50/50">
+                    <button onClick={() => { setEditSale(sale); setEditTotal(sale.total_price); setEditPayment(sale.payment_method); }} className="bg-gray-300 text-gray-800 px-4 py-2 rounded-lg font-bold hover:bg-yellow-400 mr-2 shadow-sm transition-colors">Edit</button>
+                    <button onClick={() => handleDelete(sale.id)} className="bg-gray-200 text-gray-500 px-4 py-2 rounded-lg font-bold hover:bg-red-600 hover:text-white shadow-sm transition-colors">Delete</button>
                   </td>
                 )}
               </tr>
@@ -133,9 +145,9 @@ export default function TodaySalesPage() {
       </div>
 
       {/* EDIT MODAL (ADMIN ONLY) */}
-      {editSale && (
+      {editSale && userRole === 'super_admin' && (
         <div className="fixed inset-0 bg-gray-900/80 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
-          <div className="bg-white w-full max-w-md rounded-3xl shadow-2xl p-6">
+          <div className="bg-white w-full max-w-md rounded-3xl shadow-2xl p-6 border-2 border-yellow-400">
             <h2 className="text-2xl font-black text-green-900 mb-6 border-b-2 border-gray-200 pb-2">✏️ Edit Sale: {editSale.order_number}</h2>
             
             <div className="space-y-4">

@@ -58,6 +58,7 @@ export default function AdminModule() {
   const [adminName, setAdminName] = useState('Unknown Admin');
   const [inventory, setInventory] = useState<any[]>([]);
   const [packInventory, setPackInventory] = useState<any[]>([]);
+  const [expensesList, setExpensesList] = useState<any[]>([]); // Added for Receipt Viewer
   const [activeModal, setActiveModal] = useState<string | null>(null);
 
   // Form States
@@ -95,6 +96,10 @@ export default function AdminModule() {
     
     const { data: packaging } = await supabase.from('packaging_inventory').select('*');
     if (packaging) setPackInventory(packaging);
+
+    // Fetch expenses to display in the new Receipt Viewer
+    const { data: expenses } = await supabase.from('expenses').select('*').order('created_at', { ascending: false });
+    if (expenses) setExpensesList(expenses);
   };
 
   useEffect(() => {
@@ -244,28 +249,85 @@ export default function AdminModule() {
         </div>
       </div>
       
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        <button onClick={() => setActiveModal('stockIn')} className="bg-green-600 text-white p-10 rounded-3xl shadow-lg hover:bg-green-700 hover:scale-105 transition-all text-left flex flex-col justify-between h-48 group">
-          <span className="text-4xl">📥</span><div><h3 className="text-2xl font-black group-hover:underline">Durian Stock In</h3><p className="font-medium text-green-100 mt-1">Add batches & supplier info</p></div>
+      {/* 8 BUTTON GRID DASHBOARD */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        
+        {/* NEW BUTTON: GO TO TODAY'S SALES */}
+        <button onClick={() => router.push('/today_sales')} className="bg-green-500 text-white p-8 rounded-3xl shadow-lg hover:bg-green-600 hover:scale-105 transition-all text-left flex flex-col justify-between h-48 group">
+          <span className="text-4xl">📊</span><div><h3 className="text-xl font-black group-hover:underline">Today's Sales</h3><p className="font-bold text-green-900 mt-1">Live tracking & Edits</p></div>
         </button>
-        <button onClick={() => setActiveModal('spoilage')} className="bg-yellow-500 text-black p-10 rounded-3xl shadow-lg hover:bg-yellow-600 hover:scale-105 transition-all text-left flex flex-col justify-between h-48 group">
-          <span className="text-4xl">🗑️</span><div><h3 className="text-2xl font-black group-hover:underline">Log Spoilage</h3><p className="font-bold text-yellow-900 mt-1">Record rotten/lost stock</p></div>
+
+        <button onClick={() => setActiveModal('stockIn')} className="bg-green-600 text-white p-8 rounded-3xl shadow-lg hover:bg-green-700 hover:scale-105 transition-all text-left flex flex-col justify-between h-48 group">
+          <span className="text-4xl">📥</span><div><h3 className="text-xl font-black group-hover:underline">Durian Stock In</h3><p className="font-medium text-green-100 mt-1">Add batches & supplier</p></div>
         </button>
-        <button onClick={() => setActiveModal('expenses')} className="bg-gray-800 text-white p-10 rounded-3xl shadow-lg hover:bg-black hover:scale-105 transition-all text-left flex flex-col justify-between h-48 group">
-          <span className="text-4xl">💸</span><div><h3 className="text-2xl font-black group-hover:underline">Log Expenses</h3><p className="font-medium text-gray-300 mt-1">Rent, Staff, Bills & Receipts</p></div>
+        
+        <button onClick={() => setActiveModal('spoilage')} className="bg-yellow-500 text-black p-8 rounded-3xl shadow-lg hover:bg-yellow-600 hover:scale-105 transition-all text-left flex flex-col justify-between h-48 group">
+          <span className="text-4xl">🗑️</span><div><h3 className="text-xl font-black group-hover:underline">Log Spoilage</h3><p className="font-bold text-yellow-900 mt-1">Record rotten stock</p></div>
         </button>
-        <button onClick={() => setActiveModal('packStock')} className="bg-gray-200 text-gray-800 p-10 rounded-3xl shadow-lg border-2 border-gray-300 hover:bg-gray-300 hover:scale-105 transition-all text-left flex flex-col justify-between h-48 group">
-          <span className="text-4xl">🛍️</span><div><h3 className="text-2xl font-black group-hover:underline">Packaging Restock</h3><p className="font-bold text-gray-600 mt-1">Add bags & tupperware</p></div>
+        
+        <button onClick={() => setActiveModal('expenses')} className="bg-gray-800 text-white p-8 rounded-3xl shadow-lg hover:bg-black hover:scale-105 transition-all text-left flex flex-col justify-between h-48 group">
+          <span className="text-4xl">💸</span><div><h3 className="text-xl font-black group-hover:underline">Log Expenses</h3><p className="font-medium text-gray-300 mt-1">Rent, Staff & Bills</p></div>
         </button>
-        <button onClick={() => setActiveModal('manageDurian')} className="bg-white border-4 border-green-600 text-green-900 p-10 rounded-3xl shadow-lg hover:bg-green-50 hover:scale-105 transition-all text-left flex flex-col justify-between h-48 group">
-          <span className="text-4xl">✏️</span><div><h3 className="text-2xl font-black group-hover:underline">Edit Durians</h3><p className="font-bold text-green-700 mt-1">Modify/Delete Inventory</p></div>
+        
+        {/* NEW BUTTON: VIEW RECEIPTS INVENTORY */}
+        <button onClick={() => setActiveModal('viewReceipts')} className="bg-gray-600 text-white p-8 rounded-3xl shadow-lg hover:bg-gray-700 hover:scale-105 transition-all text-left flex flex-col justify-between h-48 group">
+          <span className="text-4xl">🧾</span><div><h3 className="text-xl font-black group-hover:underline">View Receipts</h3><p className="font-bold text-gray-300 mt-1">Check logs & docs</p></div>
         </button>
-        <button onClick={() => setActiveModal('managePack')} className="bg-white border-4 border-yellow-500 text-yellow-900 p-10 rounded-3xl shadow-lg hover:bg-yellow-50 hover:scale-105 transition-all text-left flex flex-col justify-between h-48 group">
-          <span className="text-4xl">📦</span><div><h3 className="text-2xl font-black group-hover:underline">Edit Packaging</h3><p className="font-bold text-yellow-800 mt-1">Modify/Delete Inventory</p></div>
+
+        <button onClick={() => setActiveModal('packStock')} className="bg-gray-200 text-gray-800 p-8 rounded-3xl shadow-lg border-2 border-gray-300 hover:bg-gray-300 hover:scale-105 transition-all text-left flex flex-col justify-between h-48 group">
+          <span className="text-4xl">🛍️</span><div><h3 className="text-xl font-black group-hover:underline">Pack Restock</h3><p className="font-bold text-gray-600 mt-1">Add bags & boxes</p></div>
+        </button>
+        
+        <button onClick={() => setActiveModal('manageDurian')} className="bg-white border-4 border-green-600 text-green-900 p-8 rounded-3xl shadow-lg hover:bg-green-50 hover:scale-105 transition-all text-left flex flex-col justify-between h-48 group">
+          <span className="text-4xl">✏️</span><div><h3 className="text-xl font-black group-hover:underline">Edit Durians</h3><p className="font-bold text-green-700 mt-1">Modify/Delete</p></div>
+        </button>
+        
+        <button onClick={() => setActiveModal('managePack')} className="bg-white border-4 border-yellow-500 text-yellow-900 p-8 rounded-3xl shadow-lg hover:bg-yellow-50 hover:scale-105 transition-all text-left flex flex-col justify-between h-48 group">
+          <span className="text-4xl">📦</span><div><h3 className="text-xl font-black group-hover:underline">Edit Packaging</h3><p className="font-bold text-yellow-800 mt-1">Modify/Delete</p></div>
         </button>
       </div>
 
       {/* --- MODALS --- */}
+
+      {/* NEW MODAL: VIEW RECEIPTS AND EXPENSES */}
+      {activeModal === 'viewReceipts' && (
+        <Modal title="🧾 Receipts & Document Viewer" onClose={() => setActiveModal(null)}>
+          <table className="w-full text-left">
+            <thead>
+              <tr className="border-b-4 border-gray-300">
+                <th className="p-4">Date</th>
+                <th className="p-4">Category</th>
+                <th className="p-4">Details & Supplier</th>
+                <th className="p-4 text-right">Amount</th>
+                <th className="p-4 text-center">Document</th>
+              </tr>
+            </thead>
+            <tbody>
+              {expensesList.map(exp => (
+                <tr key={exp.id} className="border-b border-gray-200 hover:bg-yellow-50 bg-white">
+                  <td className="p-4 text-sm font-bold text-gray-600">{new Date(exp.created_at).toLocaleDateString()}</td>
+                  <td className="p-4 font-extrabold text-gray-800">{exp.category}</td>
+                  <td className="p-4 text-sm text-gray-700">
+                    {exp.description} 
+                    {exp.supplier_name && <span className="text-green-700 font-bold block mt-1">Supplier: {exp.supplier_name}</span>}
+                  </td>
+                  <td className="p-4 font-black text-gray-800 text-right">RM {Math.abs(exp.total_cost_rm).toFixed(2)}</td>
+                  <td className="p-4 text-center">
+                    {exp.receipt_url ? (
+                      <a href={exp.receipt_url} target="_blank" rel="noreferrer" className="bg-green-100 text-green-700 border border-green-300 px-4 py-2 rounded-lg font-bold hover:bg-green-200 text-xs shadow-sm">
+                        📄 View Receipt
+                      </a>
+                    ) : (
+                      <span className="text-gray-400 text-xs font-bold">No Document</span>
+                    )}
+                  </td>
+                </tr>
+              ))}
+              {expensesList.length === 0 && <tr><td colSpan={5} className="p-6 text-center text-gray-500 font-bold">No expenses or receipts found.</td></tr>}
+            </tbody>
+          </table>
+        </Modal>
+      )}
 
       {activeModal === 'stockIn' && (
         <Modal title="📥 Durian Stock In" onClose={() => setActiveModal(null)}>
