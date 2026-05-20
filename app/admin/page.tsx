@@ -3,7 +3,23 @@ import { useState, useEffect, useRef } from 'react';
 import { supabase } from '../../lib/supabase';
 import { useRouter } from 'next/navigation';
 
-// --- OPTIMIZED ROW COMPONENTS (USE REF TO PREVENT RE-RENDERS) ---
+// --- SHARED STYLES ---
+const inputClass = "w-full border border-gray-300 p-3 rounded-xl text-black bg-gray-50 focus:bg-white focus:ring-2 focus:ring-blue-200 outline-none transition-all shadow-inner font-semibold";
+
+// --- OPTIMIZED MODAL COMPONENT (MOVED OUTSIDE TO PREVENT RE-RENDERING BUGS) ---
+const Modal = ({ title, onClose, children }: { title: string, onClose: () => void, children: React.ReactNode }) => (
+  <div className="fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4 md:p-8 backdrop-blur-sm">
+    <div className="bg-white w-full max-w-5xl max-h-[90vh] rounded-3xl shadow-2xl flex flex-col overflow-hidden animate-in fade-in zoom-in duration-200">
+      <div className="bg-gray-100 p-6 border-b flex justify-between items-center shrink-0">
+        <h2 className="text-2xl font-black text-gray-900">{title}</h2>
+        <button onClick={onClose} className="bg-gray-300 text-gray-800 px-6 py-2 rounded-xl font-bold hover:bg-gray-400 shadow-sm transition-colors">✕ Close</button>
+      </div>
+      <div className="p-6 overflow-y-auto bg-gray-50/50">{children}</div>
+    </div>
+  </div>
+);
+
+// --- OPTIMIZED ROW COMPONENTS ---
 function DurianRow({ item, onSave }: { item: any, onSave: (type: string, data: any) => void }) {
   const qtyRef = useRef<HTMLInputElement>(null);
   const weightRef = useRef<HTMLInputElement>(null);
@@ -39,6 +55,7 @@ function PackRow({ item, onSave }: { item: any, onSave: (name: string, qty: stri
   );
 }
 
+// --- MAIN ADMIN MODULE ---
 export default function AdminModule() {
   const router = useRouter();
   const [inventory, setInventory] = useState<any[]>([]);
@@ -178,20 +195,6 @@ export default function AdminModule() {
     if (opCategory === 'Shop Rent') setOpAmount('1800');
     else setOpAmount('');
   }, [opCategory]);
-
-  const inputClass = "w-full border border-gray-300 p-3 rounded-xl text-black bg-gray-50 focus:bg-white focus:ring-2 focus:ring-blue-200 outline-none transition-all shadow-inner font-semibold";
-
-  const Modal = ({ title, onClose, children }: { title: string, onClose: () => void, children: React.ReactNode }) => (
-    <div className="fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4 md:p-8 backdrop-blur-sm">
-      <div className="bg-white w-full max-w-5xl max-h-[90vh] rounded-3xl shadow-2xl flex flex-col overflow-hidden animate-in fade-in zoom-in duration-200">
-        <div className="bg-gray-100 p-6 border-b flex justify-between items-center shrink-0">
-          <h2 className="text-2xl font-black text-gray-900">{title}</h2>
-          <button onClick={onClose} className="bg-gray-300 text-gray-800 px-6 py-2 rounded-xl font-bold hover:bg-gray-400 shadow-sm transition-colors">✕ Close</button>
-        </div>
-        <div className="p-6 overflow-y-auto bg-gray-50/50">{children}</div>
-      </div>
-    </div>
-  );
 
   return (
     <div className="pb-10 text-black bg-gray-50 min-h-screen relative">
