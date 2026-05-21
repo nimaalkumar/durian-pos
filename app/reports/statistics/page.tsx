@@ -162,22 +162,33 @@ export default function StatisticsPage() {
   const xStep = trendData.length > 1 ? graphWidth / (trendData.length - 1) : graphWidth;
   const polylinePoints = trendData.map((d, i) => `${i * xStep},${graphHeight - ((d.value / maxVal) * graphHeight)}`).join(' ');
 
-  const inputClass = "border-2 border-gray-300 p-2.5 rounded-xl text-black bg-gray-50 font-bold focus:ring-2 outline-none text-sm";
+  const inputClass = "border-2 border-gray-300 p-2.5 rounded-xl text-black bg-gray-50 font-bold focus:ring-2 focus:ring-green-400 outline-none text-sm";
 
   return (
-    <div className="pb-10 bg-gray-50 min-h-screen text-black">
+    <div className="pb-10 bg-gray-100 min-h-screen text-black">
       
+      {/* TOP NAVIGATION BAR */}
+      <div className="flex justify-between items-center bg-gray-200 p-3 shadow-sm print:hidden w-full">
+        <div className="flex gap-2">
+          <button onClick={() => router.back()} className="bg-gray-300 hover:bg-gray-400 text-gray-800 px-4 py-2 rounded-lg font-bold transition-colors">← Back</button>
+          <button onClick={() => window.location.reload()} className="bg-gray-300 hover:bg-gray-400 text-gray-800 px-4 py-2 rounded-lg font-bold transition-colors">🔄 Refresh</button>
+        </div>
+        <div className="flex gap-2">
+          <button onClick={() => router.push('/profile')} className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg font-bold transition-colors">👤 Profile</button>
+          <button onClick={async () => { await supabase.auth.signOut(); router.push('/auth'); }} className="bg-yellow-500 hover:bg-yellow-600 text-gray-900 px-4 py-2 rounded-lg font-bold transition-colors">🚪 Logout</button>
+        </div>
+      </div>
+
       {/* 🖥️ INTERACTIVE VIEW */}
-      <div className="print:hidden">
+      <div className="print:hidden p-4">
         
         <div className="flex flex-col md:flex-row justify-between items-center mb-8 gap-4 bg-white p-6 rounded-3xl shadow-sm border border-gray-200">
           <div className="flex items-center gap-4">
-            <button onClick={() => router.push('/reports')} className="bg-gray-100 hover:bg-gray-200 text-gray-800 p-3 rounded-full transition-colors font-black">←</button>
             <div><h1 className="text-4xl font-black text-gray-900 tracking-tight">Statistics & Trends</h1></div>
           </div>
           
           <div className="flex flex-wrap items-center gap-3">
-            <select value={metric} onChange={(e) => setMetric(e.target.value)} className="border-2 border-blue-300 p-3 rounded-xl text-blue-900 bg-blue-50 font-bold focus:ring-2 outline-none">
+            <select value={metric} onChange={(e) => setMetric(e.target.value)} className="border-2 border-green-300 p-3 rounded-xl text-green-900 bg-green-50 font-bold focus:ring-2 focus:ring-green-500 outline-none">
               <option value="sales">📈 Sales Trend</option>
               <option value="expenses">📉 Expenses Trend</option>
               <option value="top_sellers">🏆 Top Sellers Breakdown</option>
@@ -186,7 +197,7 @@ export default function StatisticsPage() {
             </select>
 
             {metric !== 'compare' && metric !== 'low_inventory' && (
-              <select value={timeRange} onChange={(e) => setTimeRange(e.target.value)} className="border-2 border-gray-300 p-3 rounded-xl text-black bg-gray-50 font-bold focus:ring-2 outline-none">
+              <select value={timeRange} onChange={(e) => setTimeRange(e.target.value)} className="border-2 border-gray-300 p-3 rounded-xl text-black bg-gray-50 font-bold focus:ring-2 focus:ring-green-400 outline-none">
                 <option value="today">Today</option><option value="week">This Week</option><option value="month">This Month</option><option value="year">This Year</option><option value="custom">Custom Date</option><option value="all">All Time</option>
               </select>
             )}
@@ -195,7 +206,7 @@ export default function StatisticsPage() {
               <input type="date" value={customDate} onChange={(e) => setCustomDate(e.target.value)} className="border-2 border-gray-300 p-3 rounded-xl text-black bg-gray-50 font-bold" />
             )}
 
-            <button onClick={() => {setTimeout(()=>window.print(), 100)}} className="ml-4 bg-gray-900 text-white px-6 py-3 rounded-xl font-black hover:bg-black shadow-lg transition-transform active:scale-95">🖨️ Print Graph & Table</button>
+            <button onClick={() => {setTimeout(()=>window.print(), 100)}} className="ml-4 bg-gray-800 text-white px-6 py-3 rounded-xl font-black hover:bg-black shadow-lg transition-transform active:scale-95">🖨️ Print Graph & Table</button>
           </div>
         </div>
 
@@ -231,7 +242,6 @@ export default function StatisticsPage() {
         {metric === 'compare' ? (
           <div className="bg-white p-10 rounded-3xl shadow-lg border border-gray-200 max-w-4xl mx-auto flex flex-col items-center justify-center min-h-[450px]">
             <h2 className="text-3xl font-black text-gray-800 mb-10">Sales Comparison Data</h2>
-            {/* FIXED THE BAR CHART OVERFLOW ISSUE BY USING h-80 AND SCALING TO 200px MAX */}
             <div className="flex justify-center items-end gap-16 h-80 w-full border-b-4 border-gray-200 pb-2 relative mt-4">
                
                {/* Period 2 Bar (Yesterday / Past) */}
@@ -259,9 +269,9 @@ export default function StatisticsPage() {
 
             <div className="mt-12 text-center">
               {compareData.diff >= 0 ? (
-                 <p className="text-2xl font-bold text-green-600 bg-green-50 px-6 py-2 rounded-full border border-green-200">🚀 Up RM {compareData.diff.toFixed(2)} vs {compareData.label2}</p>
+                 <p className="text-2xl font-bold text-green-700 bg-green-50 px-6 py-2 rounded-full border border-green-200">🚀 Up RM {compareData.diff.toFixed(2)} vs {compareData.label2}</p>
               ) : (
-                 <p className="text-2xl font-bold text-red-600 bg-red-50 px-6 py-2 rounded-full border border-red-200">📉 Down RM {Math.abs(compareData.diff).toFixed(2)} vs {compareData.label2}</p>
+                 <p className="text-2xl font-bold text-yellow-700 bg-yellow-50 px-6 py-2 rounded-full border border-yellow-200">📉 Down RM {Math.abs(compareData.diff).toFixed(2)} vs {compareData.label2}</p>
               )}
             </div>
           </div>
@@ -275,8 +285,8 @@ export default function StatisticsPage() {
                  {topSellers.map((item, i) => (
                     <div key={item.type} className="flex items-center gap-4">
                        <div className="w-1/4 text-right font-black text-gray-800">{i===0?'🥇':i===1?'🥈':i===2?'🥉':''}{item.type}</div>
-                       <div className="w-2/4 bg-gray-100 rounded-full h-8 overflow-hidden flex"><div className="bg-purple-500 h-full rounded-full transition-all" style={{ width: `${(item.revenue / topSellersMax) * 100}%` }}></div></div>
-                       <div className="w-1/4 font-black text-purple-700 text-lg">RM {item.revenue.toFixed(2)}</div>
+                       <div className="w-2/4 bg-gray-100 rounded-full h-8 overflow-hidden flex"><div className="bg-green-500 h-full rounded-full transition-all" style={{ width: `${(item.revenue / topSellersMax) * 100}%` }}></div></div>
+                       <div className="w-1/4 font-black text-green-700 text-lg">RM {item.revenue.toFixed(2)}</div>
                     </div>
                  ))}
                </div>
@@ -292,8 +302,8 @@ export default function StatisticsPage() {
                  {lowStock.map((item) => (
                     <div key={item.type} className="flex items-center gap-4">
                        <div className="w-1/4 text-right font-black text-gray-800">{item.type}</div>
-                       <div className="w-2/4 bg-gray-100 rounded-full h-8 overflow-hidden flex"><div className="bg-orange-500 h-full rounded-full transition-all" style={{ width: `${(item.total_weight_kg / lowStockMax) * 100}%` }}></div></div>
-                       <div className="w-1/4 font-black text-orange-700 text-lg">{item.total_weight_kg.toFixed(2)} kg <span className="text-sm font-bold text-gray-400 ml-2">({item.total_durians} pcs)</span></div>
+                       <div className="w-2/4 bg-gray-100 rounded-full h-8 overflow-hidden flex"><div className="bg-yellow-500 h-full rounded-full transition-all" style={{ width: `${(item.total_weight_kg / lowStockMax) * 100}%` }}></div></div>
+                       <div className="w-1/4 font-black text-yellow-700 text-lg">{item.total_weight_kg.toFixed(3)} kg <span className="text-sm font-bold text-gray-400 ml-2">({item.total_durians} pcs)</span></div>
                     </div>
                  ))}
                </div>
@@ -312,9 +322,10 @@ export default function StatisticsPage() {
                    <div className="border-t-2 border-gray-400 w-full"></div>
                 </div>
                 <svg viewBox={`-10 -10 ${graphWidth + 20} ${graphHeight + 20}`} className="w-full h-[350px] overflow-visible relative z-10 drop-shadow-xl" preserveAspectRatio="none">
-                  <polyline points={polylinePoints} fill="none" stroke={metric === 'sales' ? '#22c55e' : '#ef4444'} strokeWidth="6" strokeLinecap="round" strokeLinejoin="round" />
+                  {/* Strict Green for sales, Yellow for expenses */}
+                  <polyline points={polylinePoints} fill="none" stroke={metric === 'sales' ? '#22c55e' : '#eab308'} strokeWidth="6" strokeLinecap="round" strokeLinejoin="round" />
                   {trendData.map((d, i) => (
-                    <circle key={i} cx={i * xStep} cy={graphHeight - ((d.value / maxVal) * graphHeight)} r="8" fill="white" stroke={metric === 'sales' ? '#15803d' : '#b91c1c'} strokeWidth="4" className="hover:r-12 transition-all cursor-pointer"><title>{d.date}: RM {d.value.toFixed(2)}</title></circle>
+                    <circle key={i} cx={i * xStep} cy={graphHeight - ((d.value / maxVal) * graphHeight)} r="8" fill="white" stroke={metric === 'sales' ? '#15803d' : '#ca8a04'} strokeWidth="4" className="hover:r-12 transition-all cursor-pointer"><title>{d.date}: RM {d.value.toFixed(2)}</title></circle>
                   ))}
                 </svg>
                 <div className="absolute bottom-[-30px] left-0 w-full flex justify-between px-2 text-xs font-bold text-gray-500">
@@ -329,90 +340,91 @@ export default function StatisticsPage() {
       {/* ========================================= */}
       {/* 🖨️ PERFECT PDF PRINT VIEW (GRAPHS + TABLES) */}
       {/* ========================================= */}
-      <div className="hidden print:block w-full text-black bg-white font-sans p-8" style={{ WebkitPrintColorAdjust: 'exact', printColorAdjust: 'exact' }}>
+      <div className="hidden print:block w-full text-black bg-white font-sans text-xs p-8" style={{ WebkitPrintColorAdjust: 'exact', printColorAdjust: 'exact' }}>
         
-        <div className="text-center mb-12 pb-6 border-b-4 border-green-600">
-          <img src="/logo.png" alt="Logo" className="w-28 h-28 mx-auto mb-3 object-cover rounded-full border-4 border-green-500" onError={(e) => { e.currentTarget.style.display = 'none' }} />
-          <h1 className="text-4xl font-black uppercase tracking-widest text-green-800">Ah Wei 33 Durian</h1>
-          <h2 className="text-2xl font-extrabold mt-2 text-gray-800">
+        <div className="text-center mb-8 pb-4 border-b-4 border-green-600">
+          <img src="/logo.png" alt="Logo" className="w-24 h-24 mx-auto mb-2 object-cover rounded-full border-4 border-green-500" onError={(e) => { e.currentTarget.style.display = 'none' }} />
+          <h1 className="text-3xl font-black uppercase tracking-widest text-green-800">Ah Wei 33 Durian</h1>
+          <h2 className="text-xl font-extrabold mt-1 text-gray-800">
              {metric === 'compare' ? 'Sales Comparison Report' : metric === 'sales' ? 'Sales Trend Analysis' : metric === 'expenses' ? 'Expenses Trend Analysis' : metric === 'top_sellers' ? 'Top Sellers Analysis' : 'Low Inventory Report'}
           </h2>
-          <div className="mt-3"><span className="text-gray-800 font-bold bg-yellow-100 px-5 py-2 rounded-full border border-yellow-300 inline-block text-sm">Reporting Period: {getReportDateRangeString()}</span></div>
+          <div className="mt-2"><span className="text-gray-800 font-bold bg-yellow-100 px-4 py-1.5 rounded-full border border-yellow-300 inline-block text-xs">Reporting Period: {getReportDateRangeString()}</span></div>
         </div>
 
         {metric === 'compare' ? (
-          <div className="text-center border-4 border-gray-200 p-10 rounded-3xl">
-             <h3 className="text-2xl font-black text-gray-800 uppercase tracking-widest mb-8">Sales Comparison</h3>
-             <div className="flex justify-center items-center gap-20">
+          <div className="text-center border-4 border-gray-200 p-8 rounded-3xl break-inside-avoid">
+             <h3 className="text-xl font-black text-gray-800 uppercase tracking-widest mb-6">Sales Comparison</h3>
+             <div className="flex justify-center items-center gap-16">
                <div>
                  <p className="text-gray-500 font-bold uppercase mb-2">{compareData.label2}</p>
-                 <p className="text-4xl font-black">RM {compareData.p2Sales.toFixed(2)}</p>
+                 <p className="text-3xl font-black">RM {compareData.p2Sales.toFixed(2)}</p>
                </div>
-               <div className="text-4xl font-black text-gray-300">VS</div>
+               <div className="text-3xl font-black text-gray-300">VS</div>
                <div>
                  <p className="text-green-700 font-bold uppercase mb-2">{compareData.label1}</p>
-                 <p className="text-4xl font-black text-green-800">RM {compareData.p1Sales.toFixed(2)}</p>
+                 <p className="text-3xl font-black text-green-800">RM {compareData.p1Sales.toFixed(2)}</p>
                </div>
              </div>
-             <div className="mt-12 text-center font-bold text-lg">
+             <div className="mt-8 text-center font-bold text-base">
                 Net Difference: RM {compareData.diff.toFixed(2)}
              </div>
           </div>
         ) : metric === 'top_sellers' ? (
           <div className="break-inside-avoid">
-            <div className="mb-10 p-6 bg-gray-50 rounded-2xl border-2 border-gray-200">
-               <div className="space-y-4">
+            <div className="mb-8 p-4 bg-gray-50 rounded-xl border-2 border-gray-200">
+               <div className="space-y-3">
                  {topSellers.map((item, i) => (
                     <div key={item.type} className="flex items-center gap-4">
-                       <div className="w-1/4 text-right font-black text-gray-800 text-sm">{item.type}</div>
-                       <div className="w-2/4 bg-gray-200 rounded-full h-5 overflow-hidden flex"><div className="bg-purple-500 h-full rounded-full" style={{ width: `${(item.revenue / topSellersMax) * 100}%` }}></div></div>
-                       <div className="w-1/4 font-black text-purple-800 text-sm">RM {item.revenue.toFixed(2)}</div>
+                       <div className="w-1/4 text-right font-black text-gray-800 text-xs">{item.type}</div>
+                       <div className="w-2/4 bg-gray-200 rounded-full h-4 overflow-hidden flex"><div className="bg-green-500 h-full rounded-full" style={{ width: `${(item.revenue / topSellersMax) * 100}%` }}></div></div>
+                       <div className="w-1/4 font-black text-green-800 text-xs">RM {item.revenue.toFixed(2)}</div>
                     </div>
                  ))}
                </div>
             </div>
-            <table className="w-full text-left border-collapse border-2 border-gray-300">
-              <thead><tr className="bg-green-50"><th className="border-b-2 border-green-200 p-4 font-bold text-green-900">Durian Type</th><th className="border-b-2 border-green-200 p-4 text-right font-bold text-green-900">Revenue Generated</th></tr></thead>
+            {/* Using print:break-before-page for table */}
+            <table className="w-full text-left border-collapse border-2 border-gray-300 print:break-before-page">
+              <thead><tr className="bg-green-50"><th className="border-b-2 border-green-200 p-2 font-bold text-green-900">Durian Type</th><th className="border-b-2 border-green-200 p-2 text-right font-bold text-green-900">Revenue Generated</th></tr></thead>
               <tbody>
                  {topSellers.map((item, i) => (
-                   <tr key={i} className={`border-b border-gray-200 ${i % 2 === 0 ? 'bg-white' : 'bg-yellow-50/40'}`}><td className="p-4 font-bold">{item.type}</td><td className="p-4 text-right font-black text-green-700">RM {item.revenue.toFixed(2)}</td></tr>
+                   <tr key={i} className={`border-b border-gray-200 ${i % 2 === 0 ? 'bg-white' : 'bg-yellow-50/40'}`}><td className="p-2 font-bold">{item.type}</td><td className="p-2 text-right font-black text-green-700">RM {item.revenue.toFixed(2)}</td></tr>
                  ))}
-                 {topSellers.length === 0 && <tr><td colSpan={2} className="p-4 text-center">No sales data.</td></tr>}
+                 {topSellers.length === 0 && <tr><td colSpan={2} className="p-2 text-center">No sales data.</td></tr>}
               </tbody>
               <tfoot>
-                 <tr className="bg-green-100 border-t-4 border-green-300">
-                    <td className="p-4 font-black text-right uppercase tracking-widest text-green-900">Total Revenue:</td>
-                    <td className="p-4 font-black text-right text-lg text-green-900">RM {topSellers.reduce((a,b)=>a+b.revenue,0).toFixed(2)}</td>
+                 <tr className="bg-green-100 border-t-2 border-green-300">
+                    <td className="p-2 font-black text-right uppercase tracking-widest text-green-900">Total Revenue:</td>
+                    <td className="p-2 font-black text-right text-sm text-green-900">RM {topSellers.reduce((a,b)=>a+b.revenue,0).toFixed(2)}</td>
                  </tr>
               </tfoot>
             </table>
           </div>
         ) : metric === 'low_inventory' ? (
           <div className="break-inside-avoid">
-             <div className="mb-10 p-6 bg-gray-50 rounded-2xl border-2 border-gray-200">
-               <div className="space-y-4">
+             <div className="mb-8 p-4 bg-gray-50 rounded-xl border-2 border-gray-200">
+               <div className="space-y-3">
                  {lowStock.map((item) => (
                     <div key={item.type} className="flex items-center gap-4">
-                       <div className="w-1/4 text-right font-black text-gray-800 text-sm">{item.type}</div>
-                       <div className="w-2/4 bg-gray-200 rounded-full h-5 overflow-hidden flex"><div className="bg-orange-500 h-full rounded-full" style={{ width: `${(item.total_weight_kg / lowStockMax) * 100}%` }}></div></div>
-                       <div className="w-1/4 font-black text-orange-800 text-sm">{item.total_weight_kg.toFixed(2)} kg</div>
+                       <div className="w-1/4 text-right font-black text-gray-800 text-xs">{item.type}</div>
+                       <div className="w-2/4 bg-gray-200 rounded-full h-4 overflow-hidden flex"><div className="bg-yellow-500 h-full rounded-full" style={{ width: `${(item.total_weight_kg / lowStockMax) * 100}%` }}></div></div>
+                       <div className="w-1/4 font-black text-yellow-800 text-xs">{item.total_weight_kg.toFixed(3)} kg</div>
                     </div>
                  ))}
                </div>
              </div>
-            <table className="w-full text-left border-collapse border-2 border-gray-300">
-              <thead><tr className="bg-green-50"><th className="border-b-2 border-green-200 p-4 font-bold text-green-900">Durian Type</th><th className="border-b-2 border-green-200 p-4 text-center font-bold text-green-900">Pieces</th><th className="border-b-2 border-green-200 p-4 text-right font-bold text-green-900">Weight</th></tr></thead>
+            <table className="w-full text-left border-collapse border-2 border-gray-300 print:break-before-page">
+              <thead><tr className="bg-green-50"><th className="border-b-2 border-green-200 p-2 font-bold text-green-900">Durian Type</th><th className="border-b-2 border-green-200 p-2 text-center font-bold text-green-900">Pieces</th><th className="border-b-2 border-green-200 p-2 text-right font-bold text-green-900">Weight</th></tr></thead>
               <tbody>
                  {lowStock.map((item, i) => (
-                   <tr key={i} className={`border-b border-gray-200 ${i % 2 === 0 ? 'bg-white' : 'bg-yellow-50/40'}`}><td className="p-4 font-bold text-orange-900">{item.type}</td><td className="p-4 text-center text-orange-700 font-bold">{item.total_durians} pcs</td><td className="p-4 text-right font-black text-orange-700">{item.total_weight_kg.toFixed(2)} kg</td></tr>
+                   <tr key={i} className={`border-b border-gray-200 ${i % 2 === 0 ? 'bg-white' : 'bg-yellow-50/40'}`}><td className="p-2 font-bold text-yellow-900">{item.type}</td><td className="p-2 text-center text-yellow-700 font-bold">{item.total_durians} pcs</td><td className="p-2 text-right font-black text-yellow-700">{item.total_weight_kg.toFixed(3)} kg</td></tr>
                  ))}
-                 {lowStock.length === 0 && <tr><td colSpan={3} className="p-4 text-center text-green-600 font-bold">No low stock. All healthy!</td></tr>}
+                 {lowStock.length === 0 && <tr><td colSpan={3} className="p-2 text-center text-green-600 font-bold">No low stock. All healthy!</td></tr>}
               </tbody>
               <tfoot>
-                 <tr className="bg-orange-100 border-t-4 border-orange-300">
-                    <td className="p-4 font-black text-orange-900 text-right uppercase tracking-widest">Grand Total:</td>
-                    <td className="p-4 font-black text-orange-900 text-center">{lowStock.reduce((a,b)=>a+b.total_durians,0)} pcs</td>
-                    <td className="p-4 font-black text-orange-900 text-right">{lowStock.reduce((a,b)=>a+b.total_weight_kg,0).toFixed(2)} kg</td>
+                 <tr className="bg-yellow-100 border-t-2 border-yellow-300">
+                    <td className="p-2 font-black text-yellow-900 text-right uppercase tracking-widest">Grand Total:</td>
+                    <td className="p-2 font-black text-yellow-900 text-center">{lowStock.reduce((a,b)=>a+b.total_durians,0)} pcs</td>
+                    <td className="p-2 font-black text-yellow-900 text-right">{lowStock.reduce((a,b)=>a+b.total_weight_kg,0).toFixed(3)} kg</td>
                  </tr>
               </tfoot>
             </table>
@@ -420,44 +432,44 @@ export default function StatisticsPage() {
         ) : (
           <div className="break-inside-avoid">
             {trendData.length > 0 && (
-              <div className="relative h-[300px] w-full pt-8 mb-12">
-                <div className="absolute left-0 top-0 h-[260px] w-full flex flex-col justify-between z-0">
-                   <div className="border-t-2 border-gray-200 w-full text-xs text-gray-500 font-bold -mt-3">RM {maxVal.toFixed(0)}</div>
-                   <div className="border-t-2 border-gray-200 w-full text-xs text-gray-500 font-bold -mt-3">RM {(maxVal/2).toFixed(0)}</div>
+              <div className="relative h-[250px] w-full pt-6 mb-10">
+                <div className="absolute left-0 top-0 h-[220px] w-full flex flex-col justify-between z-0">
+                   <div className="border-t-2 border-gray-200 w-full text-[10px] text-gray-500 font-bold -mt-2">RM {maxVal.toFixed(0)}</div>
+                   <div className="border-t-2 border-gray-200 w-full text-[10px] text-gray-500 font-bold -mt-2">RM {(maxVal/2).toFixed(0)}</div>
                    <div className="border-t-2 border-gray-500 w-full"></div>
                 </div>
-                <svg viewBox={`-10 -10 ${graphWidth + 20} ${graphHeight + 20}`} className="w-full h-[260px] overflow-visible relative z-10" preserveAspectRatio="none">
-                  <polyline points={polylinePoints} fill="none" stroke={metric === 'sales' ? '#22c55e' : '#ef4444'} strokeWidth="8" strokeLinecap="round" strokeLinejoin="round" />
+                <svg viewBox={`-10 -10 ${graphWidth + 20} ${graphHeight + 20}`} className="w-full h-[220px] overflow-visible relative z-10" preserveAspectRatio="none">
+                  <polyline points={polylinePoints} fill="none" stroke={metric === 'sales' ? '#22c55e' : '#eab308'} strokeWidth="8" strokeLinecap="round" strokeLinejoin="round" />
                   {trendData.map((d, i) => (
-                    <circle key={i} cx={i * xStep} cy={graphHeight - ((d.value / maxVal) * graphHeight)} r="12" fill="white" stroke={metric === 'sales' ? '#15803d' : '#b91c1c'} strokeWidth="6" />
+                    <circle key={i} cx={i * xStep} cy={graphHeight - ((d.value / maxVal) * graphHeight)} r="12" fill="white" stroke={metric === 'sales' ? '#15803d' : '#ca8a04'} strokeWidth="6" />
                   ))}
                 </svg>
-                <div className="absolute bottom-[-25px] left-0 w-full flex justify-between px-2 text-xs font-bold text-gray-600">
+                <div className="absolute bottom-[-20px] left-0 w-full flex justify-between px-2 text-[10px] font-bold text-gray-600">
                   {trendData.map((d, i) => ( <div key={i} className="text-center" style={{ width: `${100 / trendData.length}%` }}>{d.date}</div> ))}
                 </div>
               </div>
             )}
 
-            <table className="w-full text-left border-collapse border-2 border-gray-300">
+            <table className="w-full text-left border-collapse border-2 border-gray-300 print:break-before-page">
               <thead>
                 <tr className="bg-green-50">
-                  <th className="border-b-2 border-green-200 p-4 text-green-900 font-bold w-1/2">Date</th>
-                  <th className="border-b-2 border-green-200 p-4 text-right text-green-900 font-bold w-1/2">Total Amount (RM)</th>
+                  <th className="border-b-2 border-green-200 p-2 text-green-900 font-bold w-1/2">Date</th>
+                  <th className="border-b-2 border-green-200 p-2 text-right text-green-900 font-bold w-1/2">Total Amount (RM)</th>
                 </tr>
               </thead>
               <tbody>
                 {trendData.map((d, index) => (
                   <tr key={index} className={`border-b border-gray-200 ${index % 2 === 0 ? 'bg-white' : 'bg-yellow-50/40'}`}>
-                    <td className="p-4 font-bold text-gray-800">{d.date}</td>
-                    <td className={`p-4 text-right font-black ${metric === 'sales' ? 'text-green-700' : 'text-red-700'}`}>RM {d.value.toFixed(2)}</td>
+                    <td className="p-2 font-bold text-gray-800">{d.date}</td>
+                    <td className={`p-2 text-right font-black ${metric === 'sales' ? 'text-green-700' : 'text-yellow-700'}`}>RM {d.value.toFixed(2)}</td>
                   </tr>
                 ))}
-                {trendData.length === 0 && <tr><td colSpan={2} className="p-4 text-center">No trend data.</td></tr>}
+                {trendData.length === 0 && <tr><td colSpan={2} className="p-2 text-center">No trend data.</td></tr>}
               </tbody>
               <tfoot>
-                 <tr className="bg-green-100 border-t-4 border-green-300">
-                    <td className="p-4 font-black text-green-900 text-right uppercase tracking-widest">Grand Total:</td>
-                    <td className={`p-4 font-black text-right text-lg ${metric === 'sales' ? 'text-green-800' : 'text-red-800'}`}>RM {trendData.reduce((a,b)=>a+b.value,0).toFixed(2)}</td>
+                 <tr className="bg-green-100 border-t-2 border-green-300">
+                    <td className="p-2 font-black text-green-900 text-right uppercase tracking-widest">Grand Total:</td>
+                    <td className={`p-2 font-black text-right text-sm ${metric === 'sales' ? 'text-green-800' : 'text-yellow-800'}`}>RM {trendData.reduce((a,b)=>a+b.value,0).toFixed(2)}</td>
                  </tr>
               </tfoot>
             </table>

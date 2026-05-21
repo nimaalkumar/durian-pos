@@ -62,20 +62,32 @@ export default function ProfilePage() {
     router.push('/auth');
   };
 
-  const inputClass = "w-full border border-gray-300 p-4 rounded-xl text-black bg-gray-50 focus:bg-white focus:ring-2 focus:ring-blue-500 outline-none transition-all shadow-inner font-bold";
+  const inputClass = "w-full border-2 border-gray-300 p-4 rounded-xl text-black bg-gray-50 focus:bg-white focus:ring-2 focus:ring-green-400 outline-none transition-all shadow-inner font-bold";
 
   return (
-    <div className="pb-10 text-black max-w-2xl mx-auto mt-8 relative">
+    <div className="pb-10 text-black bg-gray-100 min-h-screen relative">
       
+      {/* TOP NAVIGATION BAR */}
+      <div className="flex justify-between items-center bg-gray-200 p-3 shadow-sm w-full">
+        <div className="flex gap-2">
+          <button onClick={() => router.back()} className="bg-gray-300 hover:bg-gray-400 text-gray-800 px-4 py-2 rounded-lg font-bold transition-colors">← Back</button>
+          <button onClick={() => window.location.reload()} className="bg-gray-300 hover:bg-gray-400 text-gray-800 px-4 py-2 rounded-lg font-bold transition-colors">🔄 Refresh</button>
+        </div>
+        <div className="flex gap-2">
+          {/* Profile button not needed since we are on the profile page, but included for layout consistency */}
+          <button onClick={async () => { await supabase.auth.signOut(); router.push('/auth'); }} className="bg-yellow-500 hover:bg-yellow-600 text-gray-900 px-4 py-2 rounded-lg font-bold transition-colors">🚪 Logout</button>
+        </div>
+      </div>
+
       {/* CUSTOM POPUP NOTIFICATION */}
       {toast.show && (
-        <div className={`fixed top-10 left-1/2 transform -translate-x-1/2 z-[100] px-8 py-4 rounded-2xl shadow-2xl text-white font-extrabold text-lg transition-all animate-bounce ${toast.type === 'error' ? 'bg-red-600' : 'bg-green-600'}`}>
-          {toast.type === 'error' ? '❌ ' : '✅ '} {toast.msg}
+        <div className={`fixed top-10 left-1/2 transform -translate-x-1/2 z-[100] px-8 py-4 rounded-2xl shadow-2xl font-extrabold text-lg transition-all animate-bounce ${toast.type === 'error' ? 'bg-yellow-400 text-black' : 'bg-green-600 text-white'}`}>
+          {toast.msg}
         </div>
       )}
 
-      <div className="bg-white p-8 shadow-sm rounded-3xl border border-gray-200">
-        <h1 className="text-3xl font-extrabold text-gray-900 mb-6 border-b pb-4">👤 Edit Profile Settings</h1>
+      <div className="max-w-2xl mx-auto mt-8 bg-white p-8 shadow-sm rounded-3xl border-2 border-gray-200">
+        <h1 className="text-3xl font-extrabold text-green-900 mb-6 border-b-2 border-gray-200 pb-4">👤 Edit Profile Settings</h1>
         
         <div className="space-y-6">
           <div className="grid grid-cols-2 gap-4">
@@ -94,19 +106,19 @@ export default function ProfilePage() {
             <input type="email" value={email} onChange={e=>setEmail(e.target.value)} className={inputClass} />
           </div>
 
-          <div className="bg-gray-50 p-4 rounded-xl border border-gray-200">
+          <div className="bg-gray-50 p-4 rounded-xl border-2 border-gray-200">
             <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Change Password</label>
             <input type="password" placeholder="Leave blank to keep current..." value={newPassword} onChange={e=>setNewPassword(e.target.value)} className={inputClass} />
             <p className="text-xs text-gray-500 font-semibold mt-2 ml-1">Must be 6+ chars, 1 number, 1 special character.</p>
           </div>
 
-          <button onClick={handleUpdate} className="w-full bg-blue-600 text-white font-extrabold py-4 rounded-xl hover:bg-blue-700 shadow-md transition-all active:scale-[0.98] text-lg">
+          <button onClick={handleUpdate} className="w-full bg-green-600 text-white font-extrabold py-4 rounded-xl hover:bg-green-700 shadow-md transition-all active:scale-[0.98] text-lg">
             Save Profile Changes
           </button>
         </div>
 
-        <div className="mt-8 border-t pt-8">
-          <button onClick={handleLogout} className="w-full bg-red-50 text-red-600 border-2 border-red-200 font-extrabold py-4 rounded-xl hover:bg-red-600 hover:text-white transition-colors text-lg shadow-sm">
+        <div className="mt-8 border-t-2 border-gray-200 pt-8">
+          <button onClick={handleLogout} className="w-full bg-gray-200 text-gray-800 border-2 border-gray-300 font-extrabold py-4 rounded-xl hover:bg-yellow-400 hover:text-black transition-colors text-lg shadow-sm">
             🚪 Secure Logout
           </button>
         </div>
