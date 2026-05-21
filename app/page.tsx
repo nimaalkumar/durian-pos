@@ -25,24 +25,26 @@ export default function HomeDashboard() {
   }, [router]);
 
   return (
-    <div className="min-h-[70vh] flex flex-col items-center justify-center text-black">
+    // CHANGED: Added 'bg-gray-100' to the container and 'min-h-screen' to ensure it covers the whole page
+    <div className="min-h-screen flex flex-col items-center justify-center text-black bg-gray-100 p-6">
       
       <div className="text-center mb-12 mt-8">
         <h1 className="text-4xl md:text-5xl font-extrabold text-gray-900 mb-2 tracking-tight">
           Welcome back, <span className="text-green-700">{accountName}</span>!
         </h1>
-        <p className="text-xl text-gray-500 font-medium">Select a module to continue</p>
+        <p className="text-xl text-gray-600 font-medium">Select a module to continue</p>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-8 w-full max-w-4xl px-4">
+      {/* Grid container remains the same, but buttons now sit on a light gray background */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-8 w-full max-w-4xl">
         
-        <Link href="/pos" className="bg-white p-10 rounded-3xl shadow-lg border border-gray-100 flex flex-col items-center justify-center hover:scale-105 hover:shadow-2xl hover:border-green-300 transition-all duration-300 group">
+        <Link href="/pos" className="bg-white p-10 rounded-3xl shadow-sm border border-gray-200 flex flex-col items-center justify-center hover:scale-105 hover:shadow-xl hover:border-green-300 transition-all duration-300 group">
           <span className="text-7xl mb-4 group-hover:animate-bounce">🛒</span>
           <h2 className="text-2xl font-extrabold text-gray-800">Cashier POS</h2>
           <p className="text-gray-500 mt-2 font-medium">Process orders & payments</p>
         </Link>
 
-        <Link href="/profile" className="bg-white p-10 rounded-3xl shadow-lg border border-gray-100 flex flex-col items-center justify-center hover:scale-105 hover:shadow-2xl hover:blue-green-300 transition-all duration-300 group">
+        <Link href="/profile" className="bg-white p-10 rounded-3xl shadow-sm border border-gray-200 flex flex-col items-center justify-center hover:scale-105 hover:shadow-xl hover:border-green-300 transition-all duration-300 group">
           <span className="text-7xl mb-4 group-hover:animate-bounce">👤</span>
           <h2 className="text-2xl font-extrabold text-gray-800">Account / Logout</h2>
           <p className="text-gray-500 mt-2 font-medium">Manage profile settings</p>
@@ -50,13 +52,13 @@ export default function HomeDashboard() {
 
         {role === 'super_admin' && (
           <>
-            <Link href="/admin" className="bg-white p-10 rounded-3xl shadow-lg border border-gray-100 flex flex-col items-center justify-center hover:scale-105 hover:shadow-2xl hover:border-purple-300 transition-all duration-300 group">
+            <Link href="/admin" className="bg-white p-10 rounded-3xl shadow-sm border border-gray-200 flex flex-col items-center justify-center hover:scale-105 hover:shadow-xl hover:border-green-300 transition-all duration-300 group">
               <span className="text-7xl mb-4 group-hover:animate-bounce">📦</span>
               <h2 className="text-2xl font-extrabold text-gray-800">Inventory & Admin</h2>
               <p className="text-gray-500 mt-2 font-medium">Manage stock & expenses</p>
             </Link>
 
-            <Link href="/reports" className="bg-white p-10 rounded-3xl shadow-lg border border-gray-100 flex flex-col items-center justify-center hover:scale-105 hover:shadow-2xl hover:border-orange-300 transition-all duration-300 group">
+            <Link href="/reports" className="bg-white p-10 rounded-3xl shadow-sm border border-gray-200 flex flex-col items-center justify-center hover:scale-105 hover:shadow-xl hover:border-green-300 transition-all duration-300 group">
               <span className="text-7xl mb-4 group-hover:animate-bounce">📊</span>
               <h2 className="text-2xl font-extrabold text-gray-800">Business Reports</h2>
               <p className="text-gray-500 mt-2 font-medium">View sales & analytics</p>
