@@ -1,8 +1,10 @@
 'use client'
 import { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabase';
+import { useRouter } from 'next/navigation';
 
 export default function POSSystem() {
+  const router = useRouter();
   const [inventory, setInventory] = useState<any[]>([]);
   const [packInventory, setPackInventory] = useState<any[]>([]);
   const [cashierName, setCashierName] = useState('Unknown Cashier');
@@ -31,7 +33,6 @@ export default function POSSystem() {
 
   useEffect(() => {
     async function fetchData() {
-      // Get User Name for tracking
       const { data: { session } } = await supabase.auth.getSession();
       if (session) {
         const { data: profile } = await supabase.from('profiles').select('account_name').eq('id', session.user.id).single();
@@ -46,17 +47,15 @@ export default function POSSystem() {
     fetchData();
   }, []);
 
-  // --- CART FUNCTIONS ---
   const addToCart = () => {
     if (!selectedDurian || !currentWeight) return showToast("❌ Enter a weight to add!", "error");
     
-    // PREVENT NEGATIVE STOCK CHECK
     const currentCartWeight = cart.filter(item => item.type === selectedDurian.type).reduce((sum, item) => sum + item.weight, 0);
     const totalRequestedWeight = currentCartWeight + parseFloat(currentWeight);
     const totalRequestedQty = cart.filter(item => item.type === selectedDurian.type).reduce((sum, item) => sum + item.qty, 0) + currentQty;
 
     if (totalRequestedWeight > selectedDurian.total_weight_kg) {
-      return showToast(`❌ NOT ENOUGH STOCK! You requested ${totalRequestedWeight}kg, but only ${selectedDurian.total_weight_kg.toFixed(2)}kg is left in inventory.`, "error");
+      return showToast(`❌ NOT ENOUGH STOCK! You requested ${totalRequestedWeight.toFixed(3)}kg, but only ${Number(selectedDurian.total_weight_kg).toFixed(3)}kg is left in inventory.`, "error");
     }
     if (totalRequestedQty > selectedDurian.total_durians) {
       return showToast(`❌ NOT ENOUGH PIECES! You requested ${totalRequestedQty} pcs, but only ${selectedDurian.total_durians} pcs are left.`, "error");
@@ -84,7 +83,6 @@ export default function POSSystem() {
     setCart(newCart);
   };
 
-  // --- CALCULATIONS ---
   const basePrice = cart.reduce((sum, item) => sum + item.total_price, 0);
   const finalDurianPrice = customPrice !== '' ? parseFloat(customPrice) : basePrice;
   const finalDeliveryFee = orderType === 'delivery' ? parseFloat(deliveryFee || '0') : 0;
@@ -92,37 +90,24 @@ export default function POSSystem() {
 
   const handleCheckout = async () => {
     if (cart.length === 0) return showToast("❌ Cart is empty!", "error");
-    
-    if (orderType === 'eat_here' && !tableNumber.trim()) {
-      return showToast("❌ Please enter a Table Number!", "error");
-    }
+    if (orderType === 'eat_here' && !tableNumber.trim()) return showToast("❌ Please enter a Table Number!", "error");
 
     if (confirm(`Are you sure you want to process this payment for RM ${grandTotal.toFixed(2)}?`)) {
         const totalQty = cart.reduce((sum, item) => sum + item.qty, 0);
         const totalWeight = cart.reduce((sum, item) => sum + item.weight, 0);
         const durianTypeLabel = cart.length === 1 ? cart[0].type : `Mixed Order (${cart.length} items)`;
-        
-        // Generate Unique Order Number
         const orderNum = `ORD-${Date.now().toString().slice(-6)}`;
 
-        // 1. Insert Sales Record with Cashier Name and Order Number
         const { error } = await supabase.from('sales').insert({
-          durian_type: durianTypeLabel, 
-          quantity: totalQty, 
-          weight_kg: totalWeight, 
-          total_price: grandTotal, 
-          payment_method: paymentMethod, 
-          order_type: orderType, 
-          delivery_fee: finalDeliveryFee,
-          cart_items: cart,
+          durian_type: durianTypeLabel, quantity: totalQty, weight_kg: totalWeight, 
+          total_price: grandTotal, payment_method: paymentMethod, order_type: orderType, 
+          delivery_fee: finalDeliveryFee, cart_items: cart,
           table_number: orderType === 'eat_here' ? tableNumber.trim() : null,
-          cashier_name: cashierName,
-          order_number: orderNum
+          cashier_name: cashierName, order_number: orderNum
         });
 
         if (error) return showToast("❌ Error processing sale! " + error.message, "error");
 
-        // 2. Deduct Durian Inventory
         for (const item of cart) {
           const dbItem = inventory.find(i => i.type === item.type);
           if (dbItem) {
@@ -132,7 +117,6 @@ export default function POSSystem() {
           }
         }
 
-        // 3. Deduct Packaging
         const deductPack = async (name: string, usedQty: number) => {
           if (usedQty > 0) {
             const item = packInventory.find(p => p.item_name === name);
@@ -144,27 +128,43 @@ export default function POSSystem() {
         await deductPack('Tupperware L', tupLUsed);
 
         showToast(`✅ Payment Successful! Order No: ${orderNum}`);
-        setTimeout(() => { window.location.reload(); }, 3000); 
+        setTimeout(() => { window.location.reload(); }, 2000); 
     }
   };
 
   const inputClass = "w-full border-2 border-gray-300 p-3 rounded-xl text-black bg-white focus:ring-2 focus:ring-green-500 outline-none font-bold text-lg transition-all";
 
   return (
-    <div className="pb-10 bg-gray-100 text-black min-h-screen relative p-4">
+    <div className="pb-10 bg-gray-100 text-black min-h-screen relative">
       
+      {/* TOP NAVIGATION BAR */}
+      <div className="flex justify-between items-center bg-gray-200 p-3 shadow-sm print:hidden w-full">
+        <div className="flex gap-2">
+          <button onClick={() => router.back()} className="bg-gray-300 hover:bg-gray-400 text-gray-800 px-4 py-2 rounded-lg font-bold transition-colors">← Back</button>
+          <button onClick={() => window.location.reload()} className="bg-gray-300 hover:bg-gray-400 text-gray-800 px-4 py-2 rounded-lg font-bold transition-colors">🔄 Refresh</button>
+        </div>
+        <div className="flex gap-2">
+          <button onClick={() => router.push('/profile')} className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg font-bold transition-colors">👤 Profile</button>
+          <button onClick={async () => { await supabase.auth.signOut(); router.push('/auth'); }} className="bg-yellow-500 hover:bg-yellow-600 text-gray-900 px-4 py-2 rounded-lg font-bold transition-colors">🚪 Logout</button>
+        </div>
+      </div>
+
       {toast.show && (
         <div className={`fixed top-10 left-1/2 transform -translate-x-1/2 z-[100] px-8 py-4 rounded-2xl shadow-2xl text-white font-extrabold text-lg transition-all animate-bounce ${toast.type === 'error' ? 'bg-yellow-600 text-black' : 'bg-green-600'}`}>
           {toast.msg}
         </div>
       )}
 
-      <div className="flex justify-between items-center mb-4 bg-white p-4 rounded-2xl shadow-sm border border-gray-200">
+      {/* DASHBOARD HEADER WITH TODAY'S SALES BUTTON */}
+      <div className="flex justify-between items-center bg-white p-4 m-4 rounded-2xl shadow-sm border border-gray-200">
         <h1 className="text-2xl font-black text-green-900">POS Cashier</h1>
-        <div className="font-bold text-gray-600 bg-gray-100 px-4 py-2 rounded-lg">Cashier: <span className="text-green-700">{cashierName}</span></div>
+        <div className="flex gap-4 items-center">
+          <div className="font-bold text-gray-600 bg-gray-100 px-4 py-2 rounded-lg hidden md:block">Cashier: <span className="text-green-700">{cashierName}</span></div>
+          <button onClick={() => router.push('/today_sales')} className="bg-green-600 hover:bg-green-700 text-white px-6 py-2 rounded-xl font-bold shadow-md transition-colors">📊 Today's Sales</button>
+        </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-12 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-12 gap-6 p-4">
         
         {/* LEFT SIDE: SELECT DURIAN */}
         <div className="md:col-span-6 bg-white p-6 shadow-md rounded-3xl border border-gray-200 flex flex-col">
@@ -177,7 +177,7 @@ export default function POSSystem() {
                 <div className="text-md text-gray-600 mt-2">
                   <span className="font-extrabold text-green-700 bg-green-100 px-2 py-1 rounded-md">RM {item.price_per_kg}/kg</span> 
                   <span className="mx-2">|</span> 
-                  Stock: <span className="font-bold">{Number(item.total_weight_kg).toFixed(2)}kg</span> ({item.total_durians} pcs)
+                  Stock: <span className="font-bold">{Number(item.total_weight_kg).toFixed(3)}kg</span> ({item.total_durians} pcs)
                 </div>
               </button>
             ))}
@@ -207,7 +207,7 @@ export default function POSSystem() {
                       </div>
                       <div>
                         <label className="block text-xs font-bold text-gray-600 uppercase tracking-wider mb-1">Weight (kg)</label>
-                        <input type="number" step="0.1" value={currentWeight} onChange={e=>setCurrentWeight(e.target.value)} className={inputClass} placeholder="e.g. 1.5" />
+                        <input type="number" step="0.001" value={currentWeight} onChange={e=>setCurrentWeight(e.target.value)} className={inputClass} placeholder="e.g. 1.542" />
                       </div>
                     </div>
                     <button onClick={addToCart} className="w-full bg-green-600 text-white font-extrabold py-3.5 rounded-xl hover:bg-green-700 shadow-md active:scale-95 transition-all text-lg">➕ Add to Order</button>
@@ -227,7 +227,7 @@ export default function POSSystem() {
                         <div key={index} className="flex justify-between items-center bg-gray-50 border border-gray-200 p-4 rounded-xl shadow-sm">
                             <div>
                               <p className="font-black text-gray-900 text-lg">{item.type}</p>
-                              <p className="text-sm text-gray-600 font-medium mt-0.5">{item.weight}kg ({item.qty}pcs) @ RM{item.price_per_kg}/kg</p>
+                              <p className="text-sm text-gray-600 font-medium mt-0.5">{Number(item.weight).toFixed(3)}kg ({item.qty}pcs) @ RM{item.price_per_kg}/kg</p>
                             </div>
                             <div className="flex items-center gap-4">
                               <span className="font-black text-green-700 text-lg">RM {item.total_price.toFixed(2)}</span>
@@ -275,7 +275,6 @@ export default function POSSystem() {
             </div>
           </div>
 
-          {/* STICKY TOTALS */}
           <div className="mt-4 pt-6 border-t border-gray-200">
             {cart.length > 0 ? (
               <div className="bg-green-50 p-6 rounded-2xl mb-6 border-2 border-green-200 shadow-sm">

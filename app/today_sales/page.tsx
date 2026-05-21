@@ -6,9 +6,8 @@ import { useRouter } from 'next/navigation';
 export default function TodaySalesPage() {
   const router = useRouter();
   const [sales, setSales] = useState<any[]>([]);
-  const [userRole, setUserRole] = useState<string>('cashier'); // default role
+  const [userRole, setUserRole] = useState<string>('cashier'); 
   
-  // EDIT MODAL STATE
   const [editSale, setEditSale] = useState<any>(null);
   const [editTotal, setEditTotal] = useState('');
   const [editPayment, setEditPayment] = useState('');
@@ -20,15 +19,13 @@ export default function TodaySalesPage() {
   };
 
   const fetchTodaySales = async () => {
-    // 1. Get User Role to lock down Edit/Delete
     const { data: { session } } = await supabase.auth.getSession();
     if (!session) return router.push('/auth');
     const { data: profile } = await supabase.from('profiles').select('role').eq('id', session.user.id).single();
     if (profile?.role) setUserRole(profile.role);
 
-    // 2. Fetch Sales where created_at is TODAY
     const today = new Date();
-    today.setHours(0, 0, 0, 0); // Start of today
+    today.setHours(0, 0, 0, 0);
 
     const { data } = await supabase
       .from('sales')
@@ -44,54 +41,48 @@ export default function TodaySalesPage() {
   }, [router]);
 
   const handleDelete = async (id: string) => {
-    // Only execute if super_admin
     if (userRole !== 'super_admin') return showToast("Unauthorized", "error");
-
     if (window.confirm("⚠️ WARNING: Are you sure you want to completely delete this sale? This cannot be undone.")) {
       const { error } = await supabase.from('sales').delete().eq('id', id);
       if (error) showToast(error.message, "error");
-      else {
-        showToast("✅ Sale deleted successfully!");
-        fetchTodaySales();
-      }
+      else { showToast("✅ Sale deleted successfully!"); fetchTodaySales(); }
     }
   };
 
   const handleSaveEdit = async () => {
-    // Only execute if super_admin
     if (userRole !== 'super_admin') return showToast("Unauthorized", "error");
-
-    const { error } = await supabase.from('sales').update({
-      total_price: parseFloat(editTotal),
-      payment_method: editPayment
-    }).eq('id', editSale.id);
-
+    const { error } = await supabase.from('sales').update({ total_price: parseFloat(editTotal), payment_method: editPayment }).eq('id', editSale.id);
     if (error) showToast(error.message, "error");
-    else {
-      showToast("✅ Sale updated successfully!");
-      setEditSale(null);
-      fetchTodaySales();
-    }
+    else { showToast("✅ Sale updated successfully!"); setEditSale(null); fetchTodaySales(); }
   };
 
   const totalToday = sales.reduce((sum, s) => sum + Number(s.total_price), 0);
 
   return (
-    <div className="pb-10 bg-gray-100 min-h-screen p-4 text-black">
+    <div className="pb-10 bg-gray-100 min-h-screen text-black">
+      
+      {/* TOP NAVIGATION BAR */}
+      <div className="flex justify-between items-center bg-gray-200 p-3 shadow-sm print:hidden w-full">
+        <div className="flex gap-2">
+          <button onClick={() => router.back()} className="bg-gray-300 hover:bg-gray-400 text-gray-800 px-4 py-2 rounded-lg font-bold transition-colors">← Back</button>
+          <button onClick={() => window.location.reload()} className="bg-gray-300 hover:bg-gray-400 text-gray-800 px-4 py-2 rounded-lg font-bold transition-colors">🔄 Refresh</button>
+        </div>
+        <div className="flex gap-2">
+          <button onClick={() => router.push('/profile')} className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg font-bold transition-colors">👤 Profile</button>
+          <button onClick={async () => { await supabase.auth.signOut(); router.push('/auth'); }} className="bg-yellow-500 hover:bg-yellow-600 text-gray-900 px-4 py-2 rounded-lg font-bold transition-colors">🚪 Logout</button>
+        </div>
+      </div>
+
       {toast.show && (
         <div className={`fixed top-10 left-1/2 transform -translate-x-1/2 z-[100] px-8 py-4 rounded-2xl shadow-2xl font-extrabold text-lg transition-all animate-bounce ${toast.type === 'error' ? 'bg-yellow-400 text-black' : 'bg-green-600 text-white'}`}>
           {toast.msg}
         </div>
       )}
 
-      <div className="flex flex-col md:flex-row justify-between items-center mb-8 gap-4 bg-white p-6 rounded-3xl shadow-sm border border-gray-200">
-        <div className="flex items-center gap-4">
-          {/* Back button to return to dashboard */}
-          <button onClick={() => router.back()} className="bg-gray-200 hover:bg-gray-300 text-gray-800 p-3 rounded-xl transition-colors font-black">← Back</button>
-          <div>
-            <h1 className="text-4xl font-black text-green-900 tracking-tight">Today's Sales Dashboard</h1>
-            <p className="text-gray-500 font-bold mt-1">Live tracking of today's revenue</p>
-          </div>
+      <div className="flex flex-col md:flex-row justify-between items-center mb-8 gap-4 bg-white p-6 rounded-3xl shadow-sm border border-gray-200 m-4 mt-8">
+        <div>
+          <h1 className="text-4xl font-black text-green-900 tracking-tight">Today's Sales Dashboard</h1>
+          <p className="text-gray-500 font-bold mt-1">Live tracking of today's revenue</p>
         </div>
         <div className="bg-green-50 px-8 py-4 rounded-2xl border-2 border-green-200 shadow-sm text-center">
            <span className="block text-sm font-bold text-green-800 uppercase">Today's Total Revenue</span>
@@ -99,15 +90,15 @@ export default function TodaySalesPage() {
         </div>
       </div>
 
-      <div className="bg-white rounded-3xl shadow-sm border border-gray-200 overflow-hidden">
-        <table className="w-full text-left">
+      {/* MOBILE SCROLL WRAPPER */}
+      <div className="bg-white rounded-3xl shadow-sm border border-gray-200 overflow-x-auto mx-4">
+        <table className="w-full text-left min-w-[800px]">
           <thead>
             <tr className="bg-gray-100 border-b-4 border-gray-300">
               <th className="p-4 text-gray-700">Order No & Time</th>
               <th className="p-4 text-gray-700">Items Ordered</th>
               <th className="p-4 text-gray-700">Payment & Type</th>
               <th className="p-4 text-right text-gray-700">Total (RM)</th>
-              {/* Only show Admin column header if user is admin */}
               {userRole === 'super_admin' && <th className="p-4 text-center text-gray-700 border-l-2 border-gray-200">Admin Actions</th>}
             </tr>
           </thead>
@@ -120,7 +111,7 @@ export default function TodaySalesPage() {
                   <div className="text-xs uppercase text-gray-400 mt-1">Cashier: {sale.cashier_name || 'System'}</div>
                 </td>
                 <td className="p-4 font-bold text-gray-800">
-                  {sale.cart_items ? sale.cart_items.map((i:any, idx:number) => <div key={idx}>• {i.type} <span className="text-sm text-gray-500 font-medium ml-1">({i.weight}kg)</span></div>) : sale.durian_type}
+                  {sale.cart_items ? sale.cart_items.map((i:any, idx:number) => <div key={idx}>• {i.type} <span className="text-sm text-gray-500 font-medium ml-1">({Number(i.weight).toFixed(3)}kg)</span></div>) : `${sale.durian_type} (${Number(sale.weight_kg).toFixed(3)}kg)`}
                 </td>
                 <td className="p-4 font-bold text-gray-600 uppercase text-xs">
                   <div className="mb-1 text-green-800">{sale.order_type === 'eat_here' ? `Eat (Table ${sale.table_number})` : sale.order_type === 'pack' ? 'Pack' : 'Delivery'}</div>
@@ -130,7 +121,6 @@ export default function TodaySalesPage() {
                   RM {sale.total_price.toFixed(2)}
                 </td>
                 
-                {/* ADMIN ONLY CONTROLS - Strictly locked to super_admin */}
                 {userRole === 'super_admin' && (
                   <td className="p-4 text-center border-l-2 border-gray-100 bg-gray-50/50">
                     <button onClick={() => { setEditSale(sale); setEditTotal(sale.total_price); setEditPayment(sale.payment_method); }} className="bg-gray-300 text-gray-800 px-4 py-2 rounded-lg font-bold hover:bg-yellow-400 mr-2 shadow-sm transition-colors">Edit</button>
@@ -153,11 +143,11 @@ export default function TodaySalesPage() {
             <div className="space-y-4">
               <div>
                 <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Total Price (RM)</label>
-                <input type="number" step="0.1" value={editTotal} onChange={(e) => setEditTotal(e.target.value)} className="w-full border-2 border-gray-300 p-3 rounded-xl font-black text-xl bg-gray-50 focus:ring-2 focus:ring-green-400 outline-none" />
+                <input type="number" step="0.1" value={editTotal} onChange={(e) => setEditTotal(e.target.value)} className="w-full border-2 border-gray-300 p-3 rounded-xl font-black text-xl bg-gray-50 focus:ring-2 focus:ring-green-400 outline-none text-black" />
               </div>
               <div>
                 <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Payment Method</label>
-                <select value={editPayment} onChange={(e) => setEditPayment(e.target.value)} className="w-full border-2 border-gray-300 p-3 rounded-xl font-bold bg-gray-50 focus:ring-2 focus:ring-green-400 outline-none">
+                <select value={editPayment} onChange={(e) => setEditPayment(e.target.value)} className="w-full border-2 border-gray-300 p-3 rounded-xl font-bold bg-gray-50 focus:ring-2 focus:ring-green-400 outline-none text-black">
                   <option value="cash">💵 Cash</option>
                   <option value="qr">📱 QR DuitNow</option>
                 </select>

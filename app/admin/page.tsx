@@ -29,7 +29,7 @@ function DurianRow({ item, onSave, onDelete }: { item: any, onSave: (type: strin
     <tr className="border-b border-gray-200 hover:bg-yellow-50 transition-colors bg-white">
       <td className="p-4 font-extrabold text-gray-900 text-lg">{item.type}</td>
       <td className="p-4"><input type="number" ref={qtyRef} defaultValue={item.total_durians} className="border-2 border-gray-300 p-2 rounded-lg w-20 text-center font-bold" /></td>
-      <td className="p-4"><input type="number" step="0.1" ref={weightRef} defaultValue={item.total_weight_kg} className="border-2 border-gray-300 p-2 rounded-lg w-24 text-center font-bold" /></td>
+      <td className="p-4"><input type="number" step="0.001" ref={weightRef} defaultValue={Number(item.total_weight_kg).toFixed(3)} className="border-2 border-gray-300 p-2 rounded-lg w-24 text-center font-bold" /></td>
       <td className="p-4"><input type="number" step="0.1" ref={priceRef} defaultValue={item.price_per_kg} className="border-2 border-green-300 bg-green-50 p-2 rounded-lg w-24 text-center font-bold text-green-800" /></td>
       <td className="p-4 text-center flex justify-center gap-2">
         <button onClick={() => onSave(item.type, { total_durians: qtyRef.current?.value, total_weight_kg: weightRef.current?.value, price_per_kg: priceRef.current?.value })} className="bg-green-600 text-white px-4 py-2 rounded-lg font-bold hover:bg-green-700 shadow-sm active:scale-95">Save</button>
@@ -58,15 +58,17 @@ export default function AdminModule() {
   const [adminName, setAdminName] = useState('Unknown Admin');
   const [inventory, setInventory] = useState<any[]>([]);
   const [packInventory, setPackInventory] = useState<any[]>([]);
-  const [expensesList, setExpensesList] = useState<any[]>([]); // Added for Receipt Viewer
+  const [suppliers, setSuppliers] = useState<string[]>([]);
+  const [expensesList, setExpensesList] = useState<any[]>([]); 
   const [activeModal, setActiveModal] = useState<string | null>(null);
 
   // Form States
-  const [stockForms, setStockForms] = useState([{ id: 1, type: '', isNew: false, newType: '', qty: '', weight: '', supplierPriceKg: '', newSellingPrice: '', supplierName: '', receiptFile: null as File | null }]);
+  const [stockForms, setStockForms] = useState([{ id: 1, type: '', isNew: false, newType: '', qty: '', weight: '', supplierPriceKg: '', newSellingPrice: '', isNewSupplier: false, supplierName: '', receiptFile: null as File | null }]);
   const [spoilType, setSpoilType] = useState('');
   const [spoilAction, setSpoilAction] = useState('spoilage'); 
   const [spoilQty, setSpoilQty] = useState('');
   const [spoilWeight, setSpoilWeight] = useState('');
+  const [refundAmount, setRefundAmount] = useState('');
   
   const [packItem, setPackItem] = useState('');
   const [packQty, setPackQty] = useState('');
@@ -97,9 +99,12 @@ export default function AdminModule() {
     const { data: packaging } = await supabase.from('packaging_inventory').select('*');
     if (packaging) setPackInventory(packaging);
 
-    // Fetch expenses to display in the new Receipt Viewer
     const { data: expenses } = await supabase.from('expenses').select('*').order('created_at', { ascending: false });
-    if (expenses) setExpensesList(expenses);
+    if (expenses) {
+       setExpensesList(expenses);
+       const uniqueSuppliers = Array.from(new Set(expenses.filter(e => e.supplier_name).map(e => e.supplier_name)));
+       setSuppliers(uniqueSuppliers as string[]);
+    }
   };
 
   useEffect(() => {
@@ -126,7 +131,7 @@ export default function AdminModule() {
     return data.publicUrl;
   };
 
-  const handleAddStockRow = () => setStockForms([...stockForms, { id: Date.now(), type: '', isNew: false, newType: '', qty: '', weight: '', supplierPriceKg: '', newSellingPrice: '', supplierName: '', receiptFile: null }]);
+  const handleAddStockRow = () => setStockForms([...stockForms, { id: Date.now(), type: '', isNew: false, newType: '', qty: '', weight: '', supplierPriceKg: '', newSellingPrice: '', isNewSupplier: false, supplierName: '', receiptFile: null }]);
   const handleRemoveStockRow = (id: number) => setStockForms(stockForms.filter(form => form.id !== id));
   const updateStockForm = (id: number, field: string, value: any) => setStockForms(prev => prev.map(form => form.id === id ? { ...form, [field]: value } : form));
 
@@ -157,7 +162,7 @@ export default function AdminModule() {
       }
     }
     showToast("✅ Stock updated and logged successfully!");
-    setStockForms([{ id: Date.now(), type: '', isNew: false, newType: '', qty: '', weight: '', supplierPriceKg: '', newSellingPrice: '', supplierName: '', receiptFile: null }]);
+    setStockForms([{ id: Date.now(), type: '', isNew: false, newType: '', qty: '', weight: '', supplierPriceKg: '', newSellingPrice: '', isNewSupplier: false, supplierName: '', receiptFile: null }]);
     fetchData();
     setActiveModal(null);
   };
@@ -166,18 +171,37 @@ export default function AdminModule() {
     if (!spoilType || !spoilQty || !spoilWeight) return showToast("Please fill required fields", "error");
     const target = inventory.find(i => i.type === spoilType);
     if (!target) return;
-    
-    if (parseInt(spoilQty) > target.total_durians || parseFloat(spoilWeight) > target.total_weight_kg) {
-      return showToast("❌ Cannot spoil more than you have in stock!", "error");
-    }
 
-    if (window.confirm(`Log ${spoilAction} for ${spoilQty} pcs of ${spoilType}?`)) {
-      const lostValue = parseFloat(spoilWeight) * target.price_per_kg;
-      await supabase.from('spoilage_returns').insert({ durian_type: spoilType, action_type: spoilAction, quantity: parseInt(spoilQty), weight_kg: parseFloat(spoilWeight), lost_value: lostValue, user_name: adminName });
-      await supabase.from('durian_inventory').update({ total_durians: target.total_durians - parseInt(spoilQty), total_weight_kg: target.total_weight_kg - parseFloat(spoilWeight) }).eq('type', spoilType);
+    if (window.confirm(`Log ${spoilAction.replace('_', ' ')} for ${spoilQty} pcs of ${spoilType}?`)) {
       
-      showToast(`✅ Spoilage Action logged!`);
-      setSpoilQty(''); setSpoilWeight(''); setSpoilType('');
+      // LOGIC: Spoilage -> Lose Stock
+      if (spoilAction === 'spoilage') {
+        const lostValue = parseFloat(spoilWeight) * target.price_per_kg;
+        await supabase.from('spoilage_returns').insert({ durian_type: spoilType, action_type: 'spoilage', quantity: parseInt(spoilQty), weight_kg: parseFloat(spoilWeight), lost_value: lostValue, user_name: adminName });
+        await supabase.from('durian_inventory').update({ total_durians: target.total_durians - parseInt(spoilQty), total_weight_kg: target.total_weight_kg - parseFloat(spoilWeight) }).eq('type', spoilType);
+      } 
+      // LOGIC: Return to Supplier -> Lose Stock, Log Refund (-) Expense
+      else if (spoilAction === 'return_supplier') {
+        const lostValue = parseFloat(spoilWeight) * target.price_per_kg;
+        await supabase.from('spoilage_returns').insert({ durian_type: spoilType, action_type: 'return_supplier', quantity: parseInt(spoilQty), weight_kg: parseFloat(spoilWeight), lost_value: lostValue, user_name: adminName });
+        await supabase.from('durian_inventory').update({ total_durians: target.total_durians - parseInt(spoilQty), total_weight_kg: target.total_weight_kg - parseFloat(spoilWeight) }).eq('type', spoilType);
+        
+        if (refundAmount) {
+          await supabase.from('expenses').insert({ category: 'Supplier Refund', durian_type: spoilType, total_cost_rm: -Math.abs(parseFloat(refundAmount)), description: `Refund for ${spoilWeight}kg of ${spoilType}`, user_name: adminName });
+        }
+      } 
+      // LOGIC: Customer Return -> GAIN Stock (+), Log Refund (+) Expense
+      else if (spoilAction === 'customer_return') {
+        await supabase.from('spoilage_returns').insert({ durian_type: spoilType, action_type: 'customer_return', quantity: parseInt(spoilQty), weight_kg: parseFloat(spoilWeight), lost_value: 0, user_name: adminName });
+        await supabase.from('durian_inventory').update({ total_durians: target.total_durians + parseInt(spoilQty), total_weight_kg: target.total_weight_kg + parseFloat(spoilWeight) }).eq('type', spoilType);
+        
+        if (refundAmount) {
+          await supabase.from('expenses').insert({ category: 'Customer Refund', durian_type: spoilType, total_cost_rm: Math.abs(parseFloat(refundAmount)), description: `Customer Return: ${spoilWeight}kg of ${spoilType}`, user_name: adminName });
+        }
+      }
+      
+      showToast(`✅ Action logged successfully!`);
+      setSpoilQty(''); setSpoilWeight(''); setSpoilType(''); setRefundAmount('');
       fetchData();
       setActiveModal(null);
     }
@@ -235,53 +259,53 @@ export default function AdminModule() {
   };
 
   return (
-    <div className="pb-10 text-black bg-gray-50 min-h-screen relative p-4">
+    <div className="pb-10 text-black bg-gray-50 min-h-screen relative">
+      
+      {/* TOP NAVIGATION BAR */}
+      <div className="flex justify-between items-center bg-gray-200 p-3 shadow-sm print:hidden w-full">
+        <div className="flex gap-2">
+          <button onClick={() => router.back()} className="bg-gray-300 hover:bg-gray-400 text-gray-800 px-4 py-2 rounded-lg font-bold transition-colors">← Back</button>
+          <button onClick={() => window.location.reload()} className="bg-gray-300 hover:bg-gray-400 text-gray-800 px-4 py-2 rounded-lg font-bold transition-colors">🔄 Refresh</button>
+        </div>
+        <div className="flex gap-2">
+          <button onClick={() => router.push('/profile')} className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg font-bold transition-colors">👤 Profile</button>
+          <button onClick={async () => { await supabase.auth.signOut(); router.push('/auth'); }} className="bg-yellow-500 hover:bg-yellow-600 text-gray-900 px-4 py-2 rounded-lg font-bold transition-colors">🚪 Logout</button>
+        </div>
+      </div>
+
       {toast.show && (
         <div className={`fixed top-10 left-1/2 transform -translate-x-1/2 z-[100] px-8 py-4 rounded-2xl shadow-2xl font-extrabold text-lg transition-all animate-bounce ${toast.type === 'error' ? 'bg-yellow-400 text-black' : 'bg-green-600 text-white'}`}>
           {toast.msg}
         </div>
       )}
 
-      <div className="flex flex-col md:flex-row justify-between items-center mb-8 gap-4 bg-white p-6 rounded-3xl shadow-sm border-2 border-gray-200">
+      <div className="flex flex-col md:flex-row justify-between items-center mb-8 gap-4 bg-white p-6 rounded-3xl shadow-sm border-2 border-gray-200 m-4 mt-8">
         <div>
           <h1 className="text-4xl font-black text-green-900 tracking-tight">Admin Control Panel</h1>
           <p className="text-gray-500 font-bold mt-1">Logged in as: <span className="text-green-700">{adminName}</span></p>
         </div>
       </div>
       
-      {/* 8 BUTTON GRID DASHBOARD */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        
-        {/* NEW BUTTON: GO TO TODAY'S SALES */}
-        <button onClick={() => router.push('/today_sales')} className="bg-green-500 text-white p-8 rounded-3xl shadow-lg hover:bg-green-600 hover:scale-105 transition-all text-left flex flex-col justify-between h-48 group">
-          <span className="text-4xl">📊</span><div><h3 className="text-xl font-black group-hover:underline">Today's Sales</h3><p className="font-bold text-green-900 mt-1">Live tracking & Edits</p></div>
-        </button>
-
+      {/* DASHBOARD GRID */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 px-4">
         <button onClick={() => setActiveModal('stockIn')} className="bg-green-600 text-white p-8 rounded-3xl shadow-lg hover:bg-green-700 hover:scale-105 transition-all text-left flex flex-col justify-between h-48 group">
           <span className="text-4xl">📥</span><div><h3 className="text-xl font-black group-hover:underline">Durian Stock In</h3><p className="font-medium text-green-100 mt-1">Add batches & supplier</p></div>
         </button>
-        
         <button onClick={() => setActiveModal('spoilage')} className="bg-yellow-500 text-black p-8 rounded-3xl shadow-lg hover:bg-yellow-600 hover:scale-105 transition-all text-left flex flex-col justify-between h-48 group">
-          <span className="text-4xl">🗑️</span><div><h3 className="text-xl font-black group-hover:underline">Log Spoilage</h3><p className="font-bold text-yellow-900 mt-1">Record rotten stock</p></div>
+          <span className="text-4xl">🔄</span><div><h3 className="text-xl font-black group-hover:underline">Spoilage & Returns</h3><p className="font-bold text-yellow-900 mt-1">Record lost & returns</p></div>
         </button>
-        
         <button onClick={() => setActiveModal('expenses')} className="bg-gray-800 text-white p-8 rounded-3xl shadow-lg hover:bg-black hover:scale-105 transition-all text-left flex flex-col justify-between h-48 group">
           <span className="text-4xl">💸</span><div><h3 className="text-xl font-black group-hover:underline">Log Expenses</h3><p className="font-medium text-gray-300 mt-1">Rent, Staff & Bills</p></div>
         </button>
-        
-        {/* NEW BUTTON: VIEW RECEIPTS INVENTORY */}
         <button onClick={() => setActiveModal('viewReceipts')} className="bg-gray-600 text-white p-8 rounded-3xl shadow-lg hover:bg-gray-700 hover:scale-105 transition-all text-left flex flex-col justify-between h-48 group">
-          <span className="text-4xl">🧾</span><div><h3 className="text-xl font-black group-hover:underline">View Receipts</h3><p className="font-bold text-gray-300 mt-1">Check logs & docs</p></div>
+          <span className="text-4xl">📄</span><div><h3 className="text-xl font-black group-hover:underline">View Documents</h3><p className="font-bold text-gray-300 mt-1">Check logs & docs</p></div>
         </button>
-
         <button onClick={() => setActiveModal('packStock')} className="bg-gray-200 text-gray-800 p-8 rounded-3xl shadow-lg border-2 border-gray-300 hover:bg-gray-300 hover:scale-105 transition-all text-left flex flex-col justify-between h-48 group">
           <span className="text-4xl">🛍️</span><div><h3 className="text-xl font-black group-hover:underline">Pack Restock</h3><p className="font-bold text-gray-600 mt-1">Add bags & boxes</p></div>
         </button>
-        
         <button onClick={() => setActiveModal('manageDurian')} className="bg-white border-4 border-green-600 text-green-900 p-8 rounded-3xl shadow-lg hover:bg-green-50 hover:scale-105 transition-all text-left flex flex-col justify-between h-48 group">
           <span className="text-4xl">✏️</span><div><h3 className="text-xl font-black group-hover:underline">Edit Durians</h3><p className="font-bold text-green-700 mt-1">Modify/Delete</p></div>
         </button>
-        
         <button onClick={() => setActiveModal('managePack')} className="bg-white border-4 border-yellow-500 text-yellow-900 p-8 rounded-3xl shadow-lg hover:bg-yellow-50 hover:scale-105 transition-all text-left flex flex-col justify-between h-48 group">
           <span className="text-4xl">📦</span><div><h3 className="text-xl font-black group-hover:underline">Edit Packaging</h3><p className="font-bold text-yellow-800 mt-1">Modify/Delete</p></div>
         </button>
@@ -289,46 +313,49 @@ export default function AdminModule() {
 
       {/* --- MODALS --- */}
 
-      {/* NEW MODAL: VIEW RECEIPTS AND EXPENSES */}
+      {/* DOCUMENT VIEWER MODAL */}
       {activeModal === 'viewReceipts' && (
-        <Modal title="🧾 Receipts & Document Viewer" onClose={() => setActiveModal(null)}>
-          <table className="w-full text-left">
-            <thead>
-              <tr className="border-b-4 border-gray-300">
-                <th className="p-4">Date</th>
-                <th className="p-4">Category</th>
-                <th className="p-4">Details & Supplier</th>
-                <th className="p-4 text-right">Amount</th>
-                <th className="p-4 text-center">Document</th>
-              </tr>
-            </thead>
-            <tbody>
-              {expensesList.map(exp => (
-                <tr key={exp.id} className="border-b border-gray-200 hover:bg-yellow-50 bg-white">
-                  <td className="p-4 text-sm font-bold text-gray-600">{new Date(exp.created_at).toLocaleDateString()}</td>
-                  <td className="p-4 font-extrabold text-gray-800">{exp.category}</td>
-                  <td className="p-4 text-sm text-gray-700">
-                    {exp.description} 
-                    {exp.supplier_name && <span className="text-green-700 font-bold block mt-1">Supplier: {exp.supplier_name}</span>}
-                  </td>
-                  <td className="p-4 font-black text-gray-800 text-right">RM {Math.abs(exp.total_cost_rm).toFixed(2)}</td>
-                  <td className="p-4 text-center">
-                    {exp.receipt_url ? (
-                      <a href={exp.receipt_url} target="_blank" rel="noreferrer" className="bg-green-100 text-green-700 border border-green-300 px-4 py-2 rounded-lg font-bold hover:bg-green-200 text-xs shadow-sm">
-                        📄 View Receipt
-                      </a>
-                    ) : (
-                      <span className="text-gray-400 text-xs font-bold">No Document</span>
-                    )}
-                  </td>
+        <Modal title="📄 Document & Expense Viewer" onClose={() => setActiveModal(null)}>
+          <div className="overflow-x-auto w-full">
+            <table className="w-full min-w-[600px] text-left border-collapse">
+              <thead>
+                <tr className="border-b-4 border-gray-300">
+                  <th className="p-4">Date</th>
+                  <th className="p-4">Category</th>
+                  <th className="p-4">Details & Supplier</th>
+                  <th className="p-4 text-right">Amount</th>
+                  <th className="p-4 text-center">Document</th>
                 </tr>
-              ))}
-              {expensesList.length === 0 && <tr><td colSpan={5} className="p-6 text-center text-gray-500 font-bold">No expenses or receipts found.</td></tr>}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {expensesList.map(exp => (
+                  <tr key={exp.id} className="border-b border-gray-200 hover:bg-yellow-50 bg-white">
+                    <td className="p-4 text-sm font-bold text-gray-600">{new Date(exp.created_at).toLocaleDateString()}</td>
+                    <td className="p-4 font-extrabold text-gray-800">{exp.category}</td>
+                    <td className="p-4 text-sm text-gray-700">
+                      {exp.description} 
+                      {exp.supplier_name && <span className="text-green-700 font-bold block mt-1">Supplier: {exp.supplier_name}</span>}
+                    </td>
+                    <td className="p-4 font-black text-gray-800 text-right">RM {Math.abs(exp.total_cost_rm).toFixed(2)}</td>
+                    <td className="p-4 text-center">
+                      {exp.receipt_url ? (
+                        <a href={exp.receipt_url} target="_blank" rel="noopener noreferrer" className="bg-green-100 text-green-700 border border-green-300 px-4 py-2 rounded-lg font-bold hover:bg-green-200 text-xs shadow-sm">
+                          📄 View Document
+                        </a>
+                      ) : (
+                        <span className="text-gray-400 text-xs font-bold">No Document</span>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+                {expensesList.length === 0 && <tr><td colSpan={5} className="p-6 text-center text-gray-500 font-bold">No expenses or documents found.</td></tr>}
+              </tbody>
+            </table>
+          </div>
         </Modal>
       )}
 
+      {/* STOCK IN WITH SUPPLIER DROPDOWN */}
       {activeModal === 'stockIn' && (
         <Modal title="📥 Durian Stock In" onClose={() => setActiveModal(null)}>
           <button onClick={handleAddStockRow} className="mb-4 bg-gray-200 text-gray-800 font-bold px-5 py-2.5 rounded-xl hover:bg-yellow-400 shadow-sm transition-colors w-full md:w-auto">+ Add Another Durian</button>
@@ -349,13 +376,27 @@ export default function AdminModule() {
                     )}
                   </div>
                   <div><label className="block text-xs font-bold text-gray-500 uppercase">Quantity</label><input type="number" onChange={e=>updateStockForm(form.id, 'qty', e.target.value)} className={inputClass} /></div>
-                  <div><label className="block text-xs font-bold text-gray-500 uppercase">Weight</label><input type="number" step="0.1" onChange={e=>updateStockForm(form.id, 'weight', e.target.value)} className={inputClass} /></div>
+                  <div><label className="block text-xs font-bold text-gray-500 uppercase">Weight</label><input type="number" step="0.001" onChange={e=>updateStockForm(form.id, 'weight', e.target.value)} className={inputClass} /></div>
                   <div><label className="block text-xs font-bold text-gray-500 uppercase">Supplier Price/kg</label><input type="number" step="0.1" onChange={e=>updateStockForm(form.id, 'supplierPriceKg', e.target.value)} className={inputClass} /></div>
                   <div><label className="block text-xs font-bold text-gray-500 uppercase">Selling Price/kg</label><input type="number" step="0.1" onChange={e=>updateStockForm(form.id, 'newSellingPrice', e.target.value)} className="w-full border-2 border-green-300 p-3 rounded-xl bg-green-50 font-bold" /></div>
                 </div>
                 <div className="grid md:grid-cols-2 gap-4 mt-4 border-t-2 border-gray-200 pt-4">
-                  <div><label className="block text-xs font-bold text-gray-500 uppercase">Supplier Name (Optional)</label><input type="text" onChange={e=>updateStockForm(form.id, 'supplierName', e.target.value)} className={inputClass} placeholder="Ah Kow Farm" /></div>
-                  <div><label className="block text-xs font-bold text-gray-500 uppercase">Upload Receipt (Optional)</label><input type="file" accept="image/*,.pdf" onChange={e=>updateStockForm(form.id, 'receiptFile', e.target.files?.[0] || null)} className={inputClass} /></div>
+                  <div>
+                    <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Supplier Name</label>
+                    {!form.isNewSupplier ? (
+                      <select value={form.supplierName} onChange={(e) => { if(e.target.value === 'ADD_NEW') updateStockForm(form.id, 'isNewSupplier', true); else updateStockForm(form.id, 'supplierName', e.target.value); }} className={inputClass}>
+                         <option value="">Select Supplier...</option>
+                         {suppliers.map(s => <option key={s} value={s}>{s}</option>)}
+                         <option value="ADD_NEW" className="font-bold text-green-600">+ New Supplier</option>
+                      </select>
+                    ) : (
+                      <div className="flex gap-2">
+                         <input type="text" placeholder="New Supplier..." onChange={e=>updateStockForm(form.id, 'supplierName', e.target.value)} className={inputClass} />
+                         <button onClick={() => updateStockForm(form.id, 'isNewSupplier', false)} className="bg-gray-300 px-4 rounded-xl font-bold">✕</button>
+                      </div>
+                    )}
+                  </div>
+                  <div><label className="block text-xs font-bold text-gray-500 uppercase mb-1">Upload Document (Optional)</label><input type="file" accept="image/*,.pdf" onChange={e=>updateStockForm(form.id, 'receiptFile', e.target.files?.[0] || null)} className={inputClass} /></div>
                 </div>
               </div>
             ))}
@@ -364,19 +405,35 @@ export default function AdminModule() {
         </Modal>
       )}
 
+      {/* SPOILAGE & RETURNS UPGRADED TO RESTORE STOCK */}
       {activeModal === 'spoilage' && (
-        <Modal title="🗑️ Log Spoilage" onClose={() => setActiveModal(null)}>
+        <Modal title="🔄 Spoilage & Returns" onClose={() => setActiveModal(null)}>
           <div className="space-y-4">
             <select value={spoilType} onChange={e=>setSpoilType(e.target.value)} className={inputClass}><option value="">Select Durian...</option>{inventory.map(i => <option key={i.type} value={i.type}>{i.type}</option>)}</select>
+            <select value={spoilAction} onChange={e=>setSpoilAction(e.target.value)} className={inputClass}>
+               <option value="spoilage">🗑️ Spoilage (Rotten/Lost) [- Deduct Stock]</option>
+               <option value="return_supplier">🚚 Return to Supplier [- Deduct Stock, Get Refund]</option>
+               <option value="customer_return">🔄 Customer Return [+ Add Back Stock, Issue Refund]</option>
+            </select>
             <div className="grid grid-cols-2 gap-4">
-              <input type="number" placeholder="Qty Lost" value={spoilQty} onChange={e=>setSpoilQty(e.target.value)} className={inputClass} />
-              <input type="number" step="0.1" placeholder="Weight Lost (kg)" value={spoilWeight} onChange={e=>setSpoilWeight(e.target.value)} className={inputClass} />
+              <input type="number" placeholder="Qty (pcs)" value={spoilQty} onChange={e=>setSpoilQty(e.target.value)} className={inputClass} />
+              <input type="number" step="0.001" placeholder="Weight (kg)" value={spoilWeight} onChange={e=>setSpoilWeight(e.target.value)} className={inputClass} />
             </div>
-            <button onClick={handleSpoilage} className={modalBtnClass}>Log Spoilage</button>
+            
+            {(spoilAction === 'return_supplier' || spoilAction === 'customer_return') && (
+              <div className="bg-yellow-50 p-4 rounded-xl border border-yellow-200 mt-4">
+                <label className="text-sm font-bold text-yellow-900 block mb-2">Refund Amount (RM)</label>
+                <input type="number" step="0.1" placeholder="RM refunded..." value={refundAmount} onChange={e=>setRefundAmount(e.target.value)} className={inputClass} />
+                <p className="text-xs text-yellow-700 mt-2 font-medium">This will automatically adjust your total expenses/revenue logs.</p>
+              </div>
+            )}
+
+            <button onClick={handleSpoilage} className={modalBtnClass}>Submit Action</button>
           </div>
         </Modal>
       )}
 
+      {/* Other Modals... (Expenses, Packaging, Edit Durian/Pack remain identical to previous blocks but with 3 decimal places) */}
       {activeModal === 'expenses' && (
         <Modal title="💸 Log Expenses" onClose={() => setActiveModal(null)}>
           <div className="space-y-4">
@@ -389,9 +446,9 @@ export default function AdminModule() {
                 <select value={staffRate} onChange={e=>setStaffRate(e.target.value)} className={inputClass}><option value="per hour">Per Hour</option><option value="per month">Per Month</option></select>
               </div>
             )}
-            <input type="number" step="0.1" placeholder="Total RM" value={opAmount} onChange={e=>setOpAmount(e.target.value)} className="w-full border-2 border-yellow-300 p-5 rounded-2xl bg-yellow-50 text-2xl font-black" />
+            <input type="number" step="0.1" placeholder="Total RM" value={opAmount} onChange={e=>setOpAmount(e.target.value)} className="w-full border-2 border-yellow-300 p-5 rounded-2xl bg-yellow-50 text-2xl font-black text-black" />
             <div>
-              <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Upload Receipt (Optional)</label>
+              <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Upload Document (Optional)</label>
               <input type="file" accept="image/*,.pdf" onChange={e=>setExpenseReceipt(e.target.files?.[0] || null)} className={inputClass} />
             </div>
             <button onClick={handleOpExpense} className={modalBtnClass}>Log Expense</button>
@@ -403,7 +460,7 @@ export default function AdminModule() {
         <Modal title="🛍️ Packaging Restock" onClose={() => setActiveModal(null)}>
           <div className="space-y-4">
             <div className="flex gap-4 mb-4">
-               {packInventory.map(p => ( <div key={p.id} className="flex-1 bg-gray-100 p-4 rounded-xl text-center border-2 border-gray-300"><span className="block text-xs font-bold uppercase">{p.item_name}</span><span className="text-xl font-black">{p.quantity}</span></div> ))}
+               {packInventory.map(p => ( <div key={p.id} className="flex-1 bg-gray-100 p-4 rounded-xl text-center border-2 border-gray-300"><span className="block text-xs font-bold uppercase text-black">{p.item_name}</span><span className="text-xl font-black text-black">{p.quantity}</span></div> ))}
             </div>
             <select value={packItem} onChange={e=>setPackItem(e.target.value)} className={inputClass}><option value="">Select Item...</option><option value="Plastic Bag">Plastic Bag</option><option value="Tupperware M">Tupperware M</option><option value="Tupperware L">Tupperware L</option></select>
             <div className="flex gap-4">
@@ -417,17 +474,19 @@ export default function AdminModule() {
 
       {activeModal === 'manageDurian' && (
         <Modal title="✏️ Edit/Delete Durians" onClose={() => setActiveModal(null)}>
-          <table className="w-full text-left">
-            <thead><tr className="border-b-4 border-green-600"><th className="p-4">Type</th><th className="p-4 text-center">Qty</th><th className="p-4 text-center">Weight</th><th className="p-4 text-center">Price</th><th className="p-4 text-center">Actions</th></tr></thead>
-            <tbody>
-              {inventory.map(item => (
-                <DurianRow key={item.type} item={item} onDelete={deleteDurian} onSave={async (type, data) => {
-                    await supabase.from('durian_inventory').update({ total_durians: parseInt(data.total_durians), total_weight_kg: parseFloat(data.total_weight_kg), price_per_kg: parseFloat(data.price_per_kg) }).eq('type', type);
-                    showToast(`✅ ${type} updated!`); fetchData();
-                }} />
-              ))}
-            </tbody>
-          </table>
+          <div className="overflow-x-auto w-full">
+            <table className="w-full text-left min-w-[600px]">
+              <thead><tr className="border-b-4 border-green-600"><th className="p-4">Type</th><th className="p-4 text-center">Qty</th><th className="p-4 text-center">Weight</th><th className="p-4 text-center">Price</th><th className="p-4 text-center">Actions</th></tr></thead>
+              <tbody>
+                {inventory.map(item => (
+                  <DurianRow key={item.type} item={item} onDelete={deleteDurian} onSave={async (type, data) => {
+                      await supabase.from('durian_inventory').update({ total_durians: parseInt(data.total_durians), total_weight_kg: parseFloat(data.total_weight_kg), price_per_kg: parseFloat(data.price_per_kg) }).eq('type', type);
+                      showToast(`✅ ${type} updated!`); fetchData();
+                  }} />
+                ))}
+              </tbody>
+            </table>
+          </div>
         </Modal>
       )}
 
