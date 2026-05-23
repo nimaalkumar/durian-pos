@@ -321,25 +321,26 @@ export default function AdminModule() {
   return (
     <div className="pb-10 text-black bg-gray-50 min-h-screen relative">
       
-      {/* 🟢 STICKY GREEN NAVIGATION BAR (SYMBOLS ONLY) */}
-      <div className="sticky top-0 z-[100] flex justify-between items-center bg-green-700 p-3 shadow-lg print:hidden w-full border-b-4 border-green-800">
-        <div className="flex gap-3">
-          <button onClick={() => router.back()} title="Back" className="bg-white/20 hover:bg-white/30 text-white w-12 h-12 flex items-center justify-center rounded-xl transition-all text-2xl active:scale-95 shadow-sm">
-            ⬅️
-          </button>
-          <button onClick={() => window.location.reload()} title="Refresh" className="bg-white/20 hover:bg-white/30 text-white w-12 h-12 flex items-center justify-center rounded-xl transition-all text-2xl active:scale-95 shadow-sm">
-            🔄
-          </button>
-        </div>
-        <div className="flex gap-3">
-          <button onClick={() => router.push('/profile')} title="Profile" className="bg-white/20 hover:bg-white/30 text-white w-12 h-12 flex items-center justify-center rounded-xl transition-all text-2xl active:scale-95 shadow-sm">
-            👤
-          </button>
-          <button onClick={async () => { await supabase.auth.signOut(); router.push('/auth'); }} title="Logout" className="bg-red-500 hover:bg-red-600 text-white w-12 h-12 flex items-center justify-center rounded-xl transition-all text-2xl active:scale-95 shadow-md">
-            🚪
-          </button>
-        </div>
-      </div>
+      {/* 🟢 STICKY GREEN NAVIGATION BAR */}
+<div className="sticky top-0 z-[100] flex items-center justify-between bg-green-800 p-2 shadow-lg print:hidden w-full border-b-4 border-green-900 h-20">
+  
+  {/* Left Buttons */}
+  <div className="flex gap-2">
+    <button onClick={() => router.back()} title="Back" className="bg-green-700 hover:bg-green-600 text-white w-14 h-14 flex items-center justify-center rounded-xl transition-all text-2xl shadow-md active:scale-95">⬅️</button>
+    <button onClick={() => window.location.reload()} title="Refresh" className="bg-green-700 hover:bg-green-600 text-white w-14 h-14 flex items-center justify-center rounded-xl transition-all text-2xl shadow-md active:scale-95">🔄</button>
+  </div>
+
+  {/* Center Logo */}
+  <div className="absolute left-1/2 -translate-x-1/2">
+    <img src="/logo.png" alt="Logo" className="w-16 h-16 object-cover rounded-full border-2 border-white shadow-lg" onError={(e) => { e.currentTarget.style.display = 'none' }} />
+  </div>
+
+  {/* Right Buttons */}
+  <div className="flex gap-2">
+    <button onClick={() => router.push('/profile')} title="Profile" className="bg-green-700 hover:bg-green-600 text-white w-14 h-14 flex items-center justify-center rounded-xl transition-all text-2xl shadow-md active:scale-95">👤</button>
+    <button onClick={async () => { await supabase.auth.signOut(); router.push('/auth'); }} title="Logout" className="bg-red-600 hover:bg-red-500 text-white w-14 h-14 flex items-center justify-center rounded-xl transition-all text-2xl shadow-md active:scale-95">🚪</button>
+  </div>
+</div>
 
       {toast.show && (
         <div className={`fixed top-10 left-1/2 transform -translate-x-1/2 z-[100] px-8 py-4 rounded-2xl shadow-2xl font-extrabold text-lg transition-all animate-bounce ${toast.type === 'error' ? 'bg-yellow-400 text-black' : 'bg-green-600 text-white'}`}>
