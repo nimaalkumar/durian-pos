@@ -351,24 +351,31 @@ export default function AdminModule() {
         <button onClick={() => router.push('/today_sales')} className="bg-green-500 text-white p-8 rounded-3xl shadow-lg hover:bg-green-600 hover:scale-105 transition-all text-left flex flex-col justify-between h-48 group">
           <span className="text-4xl">📊</span><div><h3 className="text-xl font-black group-hover:underline">Today's Sales</h3><p className="font-bold text-green-900 mt-1">Live tracking & Edits</p></div>
         </button>
+        
         <button onClick={() => setActiveModal('stockIn')} className="bg-green-600 text-white p-8 rounded-3xl shadow-lg hover:bg-green-700 hover:scale-105 transition-all text-left flex flex-col justify-between h-48 group">
           <span className="text-4xl">📥</span><div><h3 className="text-xl font-black group-hover:underline">Durian Stock In</h3><p className="font-medium text-green-100 mt-1">Add batches & supplier</p></div>
+        </button>
+
         <button onClick={() => setActiveModal('packStock')} className="bg-gray-200 text-gray-800 p-8 rounded-3xl shadow-lg border-2 border-gray-300 hover:bg-gray-300 hover:scale-105 transition-all text-left flex flex-col justify-between h-48 group">
-          <span className="text-4xl">🛍️</span><div><h3 className="text-xl font-black group-hover:underline">Pack Restock</h3><p className="font-bold text-gray-600 mt-1">Add bags & boxes</p></div>
+          <span className="text-4xl">🛍️</span><div><h3 className="text-xl font-black group-hover:underline">Packaging Stock In</h3><p className="font-bold text-gray-600 mt-1">Add bags & boxes</p></div>
         </button>
-        </button>
+        
         <button onClick={() => setActiveModal('spoilage')} className="bg-yellow-500 text-black p-8 rounded-3xl shadow-lg hover:bg-yellow-600 hover:scale-105 transition-all text-left flex flex-col justify-between h-48 group">
           <span className="text-4xl">🔄</span><div><h3 className="text-xl font-black group-hover:underline">Spoilage & Returns</h3><p className="font-bold text-yellow-900 mt-1">Record lost & returns</p></div>
         </button>
+        
         <button onClick={() => setActiveModal('expenses')} className="bg-gray-800 text-white p-8 rounded-3xl shadow-lg hover:bg-black hover:scale-105 transition-all text-left flex flex-col justify-between h-48 group">
           <span className="text-4xl">💸</span><div><h3 className="text-xl font-black group-hover:underline">Log Expenses</h3><p className="font-medium text-gray-300 mt-1">Rent, Staff & Bills</p></div>
         </button>
+        
         <button onClick={() => setActiveModal('viewReceipts')} className="bg-gray-600 text-white p-8 rounded-3xl shadow-lg hover:bg-gray-700 hover:scale-105 transition-all text-left flex flex-col justify-between h-48 group">
           <span className="text-4xl">📄</span><div><h3 className="text-xl font-black group-hover:underline">View Documents</h3><p className="font-bold text-gray-300 mt-1">Check logs & docs</p></div>
         </button>
+        
         <button onClick={() => setActiveModal('manageDurian')} className="bg-white border-4 border-green-600 text-green-900 p-8 rounded-3xl shadow-lg hover:bg-green-50 hover:scale-105 transition-all text-left flex flex-col justify-between h-48 group">
           <span className="text-4xl">✏️</span><div><h3 className="text-xl font-black group-hover:underline">Edit Durians</h3><p className="font-bold text-green-700 mt-1">Modify/Delete</p></div>
         </button>
+        
         <button onClick={() => setActiveModal('managePack')} className="bg-white border-4 border-yellow-500 text-yellow-900 p-8 rounded-3xl shadow-lg hover:bg-yellow-50 hover:scale-105 transition-all text-left flex flex-col justify-between h-48 group">
           <span className="text-4xl">📦</span><div><h3 className="text-xl font-black group-hover:underline">Edit Packaging</h3><p className="font-bold text-yellow-800 mt-1">Modify/Delete</p></div>
         </button>
