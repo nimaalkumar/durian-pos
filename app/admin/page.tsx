@@ -3,10 +3,40 @@ import { useState, useEffect, useRef } from 'react';
 import { supabase } from '../../lib/supabase';
 import { useRouter } from 'next/navigation';
 
-// --- SHARED STYLES (STRICT GRAY, YELLOW, GREEN) ---
+// --- SHARED STYLES ---
 const inputClass = "w-full border-2 border-gray-300 p-3 rounded-xl text-black bg-gray-50 focus:bg-white focus:ring-2 focus:ring-green-400 outline-none transition-all font-semibold";
 const modalBtnClass = "bg-green-600 text-white font-extrabold py-4 rounded-xl hover:bg-green-700 shadow-md transition-all active:scale-[0.98] text-lg w-full mt-4";
 const deleteBtnClass = "bg-gray-200 text-gray-800 font-bold px-4 py-2 rounded-lg hover:bg-yellow-400 hover:text-black transition-colors";
+
+// --- FIFO BATCH PROCESSOR ---
+export const processBatchFIFO = (batches: any[], qtyChange: number, weightChange: number) => {
+  let newBatches = [...(batches || [])];
+  const todayStr = new Date().toISOString().split('T')[0];
+
+  if (qtyChange > 0 || weightChange > 0) {
+      let todayBatch = newBatches.find(b => b.date === todayStr);
+      if (todayBatch) {
+          todayBatch.qty += Math.max(0, qtyChange);
+          todayBatch.weight += Math.max(0, weightChange);
+      } else {
+          newBatches.push({ date: todayStr, qty: Math.max(0, qtyChange), weight: Math.max(0, weightChange) });
+      }
+  } else if (qtyChange < 0 || weightChange < 0) {
+      let qtyToDeduct = Math.abs(qtyChange);
+      let weightToDeduct = Math.abs(weightChange);
+      newBatches.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+      
+      for (let b of newBatches) {
+          if (qtyToDeduct <= 0 && weightToDeduct <= 0) break;
+          let qD = Math.min(b.qty, qtyToDeduct);
+          let wD = Math.min(b.weight, weightToDeduct);
+          b.qty -= qD; b.weight -= wD;
+          qtyToDeduct -= qD; weightToDeduct -= wD;
+      }
+      newBatches = newBatches.filter(b => b.qty > 0 || b.weight > 0);
+  }
+  return newBatches;
+};
 
 const Modal = ({ title, onClose, children }: { title: string, onClose: () => void, children: React.ReactNode }) => (
   <div className="fixed inset-0 bg-gray-900/80 z-50 flex items-center justify-center p-4 md:p-8 backdrop-blur-sm">
@@ -25,13 +55,25 @@ function DurianRow({ item, onSave, onDelete }: { item: any, onSave: (type: strin
   const weightRef = useRef<HTMLInputElement>(null);
   const priceRef = useRef<HTMLInputElement>(null);
 
+  const todayStr = new Date().toISOString().split('T')[0];
+  const batches = item.stock_batches || [];
+  const newStock = batches.filter((b:any) => b.date === todayStr);
+  const oldStock = batches.filter((b:any) => b.date !== todayStr);
+
   return (
     <tr className="border-b border-gray-200 hover:bg-yellow-50 transition-colors bg-white">
-      <td className="p-4 font-extrabold text-gray-900 text-lg">{item.type}</td>
-      <td className="p-4"><input type="number" ref={qtyRef} defaultValue={item.total_durians} className="border-2 border-gray-300 p-2 rounded-lg w-20 text-center font-bold" /></td>
-      <td className="p-4"><input type="number" step="0.001" ref={weightRef} defaultValue={Number(item.total_weight_kg).toFixed(3)} className="border-2 border-gray-300 p-2 rounded-lg w-24 text-center font-bold" /></td>
-      <td className="p-4"><input type="number" step="0.1" ref={priceRef} defaultValue={item.price_per_kg} className="border-2 border-green-300 bg-green-50 p-2 rounded-lg w-24 text-center font-bold text-green-800" /></td>
-      <td className="p-4 text-center flex justify-center gap-2">
+      <td className="p-4 font-extrabold text-gray-900 text-lg">
+        {item.type}
+        <div className="mt-2 text-xs font-bold bg-gray-50 p-3 rounded-lg border border-gray-200 shadow-inner">
+           {oldStock.length > 0 && <div className="text-gray-600 mb-1">📦 Old: {oldStock.map((b:any) => `${b.qty}pcs (${b.date})`).join(' | ')}</div>}
+           {newStock.length > 0 && <div className="text-green-700">🆕 New (Today): {newStock.reduce((sum:number,b:any)=>sum+b.qty,0)}pcs</div>}
+           {batches.length === 0 && <div className="text-gray-400 italic">No batch tracking data yet.</div>}
+        </div>
+      </td>
+      <td className="p-4 align-top pt-6"><input type="number" ref={qtyRef} defaultValue={item.total_durians} className="border-2 border-gray-300 p-2 rounded-lg w-20 text-center font-bold" /></td>
+      <td className="p-4 align-top pt-6"><input type="number" step="0.001" ref={weightRef} defaultValue={Number(item.total_weight_kg).toFixed(3)} className="border-2 border-gray-300 p-2 rounded-lg w-24 text-center font-bold" /></td>
+      <td className="p-4 align-top pt-6"><input type="number" step=\"0.1\" ref={priceRef} defaultValue={item.price_per_kg} className="border-2 border-green-300 bg-green-50 p-2 rounded-lg w-24 text-center font-bold text-green-800" /></td>
+      <td className="p-4 text-center flex justify-center gap-2 align-top pt-6">
         <button onClick={() => onSave(item.type, { total_durians: qtyRef.current?.value, total_weight_kg: weightRef.current?.value, price_per_kg: priceRef.current?.value })} className="bg-green-600 text-white px-4 py-2 rounded-lg font-bold hover:bg-green-700 shadow-sm active:scale-95">Save</button>
         <button onClick={() => onDelete(item.type)} className={deleteBtnClass}>Delete</button>
       </td>
@@ -44,7 +86,7 @@ function PackRow({ item, onSave, onDelete }: { item: any, onSave: (name: string,
   return (
     <tr className="border-b border-gray-200 hover:bg-yellow-50 transition-colors bg-white">
       <td className="p-4 font-extrabold text-gray-900 text-lg">{item.item_name}</td>
-      <td className="p-4"><input type="number" ref={qtyRef} defaultValue={item.quantity} className="border-2 border-gray-300 p-3 rounded-xl w-32 text-center font-black text-lg" /></td>
+      <td className="p-4"><input type="number" ref={qtyRef} defaultValue={item.quantity} className="border-2 border-gray-300 p-3 rounded-xl w-32 text-center font-black text-lg text-black" /></td>
       <td className="p-4 text-center flex justify-center gap-2">
         <button onClick={() => onSave(item.item_name, qtyRef.current?.value || '0')} className="bg-green-600 text-white px-4 py-2 rounded-lg font-bold hover:bg-green-700 shadow-sm active:scale-95">Save</button>
         <button onClick={() => onDelete(item.item_name)} className={deleteBtnClass}>Delete</button>
@@ -62,7 +104,6 @@ export default function AdminModule() {
   const [expensesList, setExpensesList] = useState<any[]>([]); 
   const [activeModal, setActiveModal] = useState<string | null>(null);
 
-  // Form States
   const [stockForms, setStockForms] = useState([{ id: 1, type: '', isNew: false, newType: '', qty: '', weight: '', supplierPriceKg: '', newSellingPrice: '', isNewSupplier: false, supplierName: '', receiptFile: null as File | null }]);
   const [spoilType, setSpoilType] = useState('');
   const [spoilAction, setSpoilAction] = useState('spoilage'); 
@@ -146,10 +187,19 @@ export default function AdminModule() {
         const receiptUrl = await uploadFile(form.receiptFile);
 
         const existing = inventory.find(i => i.type.toLowerCase() === actualType.toLowerCase());
+        const updatedBatches = processBatchFIFO(existing?.stock_batches || [], parseInt(form.qty), parseFloat(form.weight));
+
         if (existing) {
-          await supabase.from('durian_inventory').update({ total_durians: existing.total_durians + parseInt(form.qty), total_weight_kg: existing.total_weight_kg + parseFloat(form.weight), price_per_kg: parseFloat(form.newSellingPrice) }).eq('type', existing.type);
+          await supabase.from('durian_inventory').update({ 
+            total_durians: existing.total_durians + parseInt(form.qty), 
+            total_weight_kg: existing.total_weight_kg + parseFloat(form.weight), 
+            price_per_kg: parseFloat(form.newSellingPrice),
+            stock_batches: updatedBatches
+          }).eq('type', existing.type);
         } else {
-          await supabase.from('durian_inventory').insert({ type: actualType, total_durians: parseInt(form.qty), total_weight_kg: parseFloat(form.weight), price_per_kg: parseFloat(form.newSellingPrice) });
+          await supabase.from('durian_inventory').insert({ 
+            type: actualType, total_durians: parseInt(form.qty), total_weight_kg: parseFloat(form.weight), price_per_kg: parseFloat(form.newSellingPrice), stock_batches: updatedBatches 
+          });
         }
 
         const totalCost = parseFloat(form.weight) * parseFloat(form.supplierPriceKg);
@@ -174,26 +224,22 @@ export default function AdminModule() {
 
     if (window.confirm(`Log ${spoilAction.replace('_', ' ')} for ${spoilQty} pcs of ${spoilType}?`)) {
       
-      // LOGIC: Spoilage -> Lose Stock
-      if (spoilAction === 'spoilage') {
+      if (spoilAction === 'spoilage' || spoilAction === 'return_supplier') {
         const lostValue = parseFloat(spoilWeight) * target.price_per_kg;
-        await supabase.from('spoilage_returns').insert({ durian_type: spoilType, action_type: 'spoilage', quantity: parseInt(spoilQty), weight_kg: parseFloat(spoilWeight), lost_value: lostValue, user_name: adminName });
-        await supabase.from('durian_inventory').update({ total_durians: target.total_durians - parseInt(spoilQty), total_weight_kg: target.total_weight_kg - parseFloat(spoilWeight) }).eq('type', spoilType);
-      } 
-      // LOGIC: Return to Supplier -> Lose Stock, Log Refund (-) Expense
-      else if (spoilAction === 'return_supplier') {
-        const lostValue = parseFloat(spoilWeight) * target.price_per_kg;
-        await supabase.from('spoilage_returns').insert({ durian_type: spoilType, action_type: 'return_supplier', quantity: parseInt(spoilQty), weight_kg: parseFloat(spoilWeight), lost_value: lostValue, user_name: adminName });
-        await supabase.from('durian_inventory').update({ total_durians: target.total_durians - parseInt(spoilQty), total_weight_kg: target.total_weight_kg - parseFloat(spoilWeight) }).eq('type', spoilType);
+        const updatedBatches = processBatchFIFO(target.stock_batches || [], -parseInt(spoilQty), -parseFloat(spoilWeight));
+
+        await supabase.from('spoilage_returns').insert({ durian_type: spoilType, action_type: spoilAction, quantity: parseInt(spoilQty), weight_kg: parseFloat(spoilWeight), lost_value: lostValue, user_name: adminName });
+        await supabase.from('durian_inventory').update({ total_durians: target.total_durians - parseInt(spoilQty), total_weight_kg: target.total_weight_kg - parseFloat(spoilWeight), stock_batches: updatedBatches }).eq('type', spoilType);
         
-        if (refundAmount) {
+        if (spoilAction === 'return_supplier' && refundAmount) {
           await supabase.from('expenses').insert({ category: 'Supplier Refund', durian_type: spoilType, total_cost_rm: -Math.abs(parseFloat(refundAmount)), description: `Refund for ${spoilWeight}kg of ${spoilType}`, user_name: adminName });
         }
       } 
-      // LOGIC: Customer Return -> GAIN Stock (+), Log Refund (+) Expense
       else if (spoilAction === 'customer_return') {
+        const updatedBatches = processBatchFIFO(target.stock_batches || [], parseInt(spoilQty), parseFloat(spoilWeight));
+
         await supabase.from('spoilage_returns').insert({ durian_type: spoilType, action_type: 'customer_return', quantity: parseInt(spoilQty), weight_kg: parseFloat(spoilWeight), lost_value: 0, user_name: adminName });
-        await supabase.from('durian_inventory').update({ total_durians: target.total_durians + parseInt(spoilQty), total_weight_kg: target.total_weight_kg + parseFloat(spoilWeight) }).eq('type', spoilType);
+        await supabase.from('durian_inventory').update({ total_durians: target.total_durians + parseInt(spoilQty), total_weight_kg: target.total_weight_kg + parseFloat(spoilWeight), stock_batches: updatedBatches }).eq('type', spoilType);
         
         if (refundAmount) {
           await supabase.from('expenses').insert({ category: 'Customer Refund', durian_type: spoilType, total_cost_rm: Math.abs(parseFloat(refundAmount)), description: `Customer Return: ${spoilWeight}kg of ${spoilType}`, user_name: adminName });
@@ -212,12 +258,9 @@ export default function AdminModule() {
     if (window.confirm(`Add ${packQty} units to ${packItem}?`)) {
       const target = packInventory.find(p => p.item_name === packItem);
       
-      if (target) {
-        await supabase.from('packaging_inventory').update({ quantity: target.quantity + parseInt(packQty) }).eq('item_name', packItem);
-      } else {
-        await supabase.from('packaging_inventory').insert({ item_name: packItem, quantity: parseInt(packQty) });
-      }
-
+      if (target) await supabase.from('packaging_inventory').update({ quantity: target.quantity + parseInt(packQty) }).eq('item_name', packItem);
+      else await supabase.from('packaging_inventory').insert({ item_name: packItem, quantity: parseInt(packQty) });
+      
       await supabase.from('expenses').insert({ category: 'Packaging', total_cost_rm: parseFloat(packCost), description: `${packQty}x ${packItem}`, user_name: adminName });
       showToast(`✅ Packaging added!`);
       setPackQty(''); setPackItem(''); setPackCost('');
@@ -231,9 +274,7 @@ export default function AdminModule() {
     if (window.confirm(`Log ${opCategory} expense of RM${opAmount}?`)) {
       let desc = opCategory;
       if (opCategory === 'Staff Salary') desc = `Staff: ${staffName} (${staffRate})`;
-      
       const receiptUrl = await uploadFile(expenseReceipt);
-      
       await supabase.from('expenses').insert({ category: opCategory, total_cost_rm: parseFloat(opAmount), description: desc, user_name: adminName, receipt_url: receiptUrl });
       showToast(`✅ Expense logged!`);
       setOpAmount(opCategory === 'Shop Rent' ? '1800' : ''); setStaffName(''); setExpenseReceipt(null);
@@ -261,7 +302,6 @@ export default function AdminModule() {
   return (
     <div className="pb-10 text-black bg-gray-50 min-h-screen relative">
       
-      {/* TOP NAVIGATION BAR */}
       <div className="flex justify-between items-center bg-gray-200 p-3 shadow-sm print:hidden w-full">
         <div className="flex gap-2">
           <button onClick={() => router.back()} className="bg-gray-300 hover:bg-gray-400 text-gray-800 px-4 py-2 rounded-lg font-bold transition-colors">← Back</button>
@@ -286,8 +326,10 @@ export default function AdminModule() {
         </div>
       </div>
       
-      {/* DASHBOARD GRID */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 px-4">
+        <button onClick={() => router.push('/today_sales')} className="bg-green-500 text-white p-8 rounded-3xl shadow-lg hover:bg-green-600 hover:scale-105 transition-all text-left flex flex-col justify-between h-48 group">
+          <span className="text-4xl">📊</span><div><h3 className="text-xl font-black group-hover:underline">Today's Sales</h3><p className="font-bold text-green-900 mt-1">Live tracking & Edits</p></div>
+        </button>
         <button onClick={() => setActiveModal('stockIn')} className="bg-green-600 text-white p-8 rounded-3xl shadow-lg hover:bg-green-700 hover:scale-105 transition-all text-left flex flex-col justify-between h-48 group">
           <span className="text-4xl">📥</span><div><h3 className="text-xl font-black group-hover:underline">Durian Stock In</h3><p className="font-medium text-green-100 mt-1">Add batches & supplier</p></div>
         </button>
@@ -311,20 +353,13 @@ export default function AdminModule() {
         </button>
       </div>
 
-      {/* --- MODALS --- */}
-
-      {/* DOCUMENT VIEWER MODAL */}
       {activeModal === 'viewReceipts' && (
         <Modal title="📄 Document & Expense Viewer" onClose={() => setActiveModal(null)}>
           <div className="overflow-x-auto w-full">
             <table className="w-full min-w-[600px] text-left border-collapse">
               <thead>
                 <tr className="border-b-4 border-gray-300">
-                  <th className="p-4">Date</th>
-                  <th className="p-4">Category</th>
-                  <th className="p-4">Details & Supplier</th>
-                  <th className="p-4 text-right">Amount</th>
-                  <th className="p-4 text-center">Document</th>
+                  <th className="p-4">Date</th><th className="p-4">Category</th><th className="p-4">Details & Supplier</th><th className="p-4 text-right">Amount</th><th className="p-4 text-center">Document</th>
                 </tr>
               </thead>
               <tbody>
@@ -355,7 +390,6 @@ export default function AdminModule() {
         </Modal>
       )}
 
-      {/* STOCK IN WITH SUPPLIER DROPDOWN */}
       {activeModal === 'stockIn' && (
         <Modal title="📥 Durian Stock In" onClose={() => setActiveModal(null)}>
           <button onClick={handleAddStockRow} className="mb-4 bg-gray-200 text-gray-800 font-bold px-5 py-2.5 rounded-xl hover:bg-yellow-400 shadow-sm transition-colors w-full md:w-auto">+ Add Another Durian</button>
@@ -405,7 +439,6 @@ export default function AdminModule() {
         </Modal>
       )}
 
-      {/* SPOILAGE & RETURNS UPGRADED TO RESTORE STOCK */}
       {activeModal === 'spoilage' && (
         <Modal title="🔄 Spoilage & Returns" onClose={() => setActiveModal(null)}>
           <div className="space-y-4">
@@ -433,7 +466,6 @@ export default function AdminModule() {
         </Modal>
       )}
 
-      {/* Other Modals... (Expenses, Packaging, Edit Durian/Pack remain identical to previous blocks but with 3 decimal places) */}
       {activeModal === 'expenses' && (
         <Modal title="💸 Log Expenses" onClose={() => setActiveModal(null)}>
           <div className="space-y-4">
@@ -480,7 +512,9 @@ export default function AdminModule() {
               <tbody>
                 {inventory.map(item => (
                   <DurianRow key={item.type} item={item} onDelete={deleteDurian} onSave={async (type, data) => {
-                      await supabase.from('durian_inventory').update({ total_durians: parseInt(data.total_durians), total_weight_kg: parseFloat(data.total_weight_kg), price_per_kg: parseFloat(data.price_per_kg) }).eq('type', type);
+                      const existingItem = inventory.find(i => i.type === type);
+                      const updatedBatches = processBatchFIFO(existingItem?.stock_batches || [], parseInt(data.total_durians) - existingItem.total_durians, parseFloat(data.total_weight_kg) - existingItem.total_weight_kg);
+                      await supabase.from('durian_inventory').update({ total_durians: parseInt(data.total_durians), total_weight_kg: parseFloat(data.total_weight_kg), price_per_kg: parseFloat(data.price_per_kg), stock_batches: updatedBatches }).eq('type', type);
                       showToast(`✅ ${type} updated!`); fetchData();
                   }} />
                 ))}
