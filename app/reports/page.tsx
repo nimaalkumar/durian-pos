@@ -111,7 +111,21 @@ export default function ReportsModule() {
   );
 
   return (
+    
     <div className="pb-10 bg-gray-100 min-h-screen">
+      {/* --- PASTE NAVIGATION BAR HERE --- */}
+      <div className="flex justify-between items-center bg-gray-200 p-3 shadow-sm print:hidden">
+        <div className="flex gap-2">
+          <button onClick={() => router.back()} className="bg-gray-300 hover:bg-gray-400 text-gray-800 px-4 py-2 rounded-lg font-bold transition-colors">← Back</button>
+          <button onClick={() => window.location.reload()} className="bg-gray-300 hover:bg-gray-400 text-gray-800 px-4 py-2 rounded-lg font-bold transition-colors">🔄 Refresh</button>
+        </div>
+        <div className="flex gap-2">
+          <button onClick={() => router.push('/profile')} className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg font-bold transition-colors">👤 Profile</button>
+          <button onClick={async () => { await supabase.auth.signOut(); router.push('/auth'); }} className="bg-yellow-500 hover:bg-yellow-600 text-gray-900 px-4 py-2 rounded-lg font-bold transition-colors">🚪 Logout</button>
+        </div>
+      </div>
+      {/* ---------------------------------- */}
+
       <div className="print:hidden text-black p-4">
         
         <div className="flex flex-col md:flex-row justify-between items-center mb-8 gap-4 bg-white p-6 rounded-3xl shadow-sm border border-gray-200">
@@ -129,16 +143,16 @@ export default function ReportsModule() {
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
           <div className="bg-white p-8 rounded-3xl shadow-sm border border-gray-200">
             <p className="text-gray-500 font-bold uppercase tracking-wider mb-2">Total Sales Revenue</p>
-            <p className="text-5xl font-black text-green-600">RM {totalRevenue.toFixed(2)}</p>
-            <p className="text-sm font-bold text-gray-500 mt-4 bg-gray-100 w-fit px-4 py-2 rounded-lg">Sold: {totalWeight.toFixed(2)}kg / {totalQty} pcs</p>
+            <p className="text-5xl font-black text-green-600">RM {totalRevenue.toFixed(3)}</p>
+            <p className="text-sm font-bold text-gray-500 mt-4 bg-gray-100 w-fit px-4 py-2 rounded-lg">Sold: {totalWeight.toFixed(3)}kg / {totalQty} pcs</p>
           </div>
           <div className="bg-white p-8 rounded-3xl shadow-sm border border-gray-200">
             <p className="text-gray-500 font-bold uppercase tracking-wider mb-2">Total Net Expenses</p>
-            <p className="text-5xl font-black text-yellow-600">RM {totalExpenses.toFixed(2)}</p>
+            <p className="text-5xl font-black text-yellow-600">RM {totalExpenses.toFixed(3)}</p>
           </div>
           <div className={`bg-white p-8 rounded-3xl shadow-sm border ${grossProfit >= 0 ? 'border-green-200 bg-green-50/50' : 'border-yellow-300 bg-yellow-50/50'}`}>
             <p className="text-gray-600 font-bold uppercase tracking-wider mb-2">Net Profit</p>
-            <p className={`text-5xl font-black ${grossProfit >= 0 ? 'text-green-700' : 'text-yellow-700'}`}>RM {grossProfit.toFixed(2)}</p>
+            <p className={`text-5xl font-black ${grossProfit >= 0 ? 'text-green-700' : 'text-yellow-700'}`}>RM {grossProfit.toFixed(3)}</p>
           </div>
         </div>
 
@@ -177,12 +191,12 @@ export default function ReportsModule() {
           <Modal id="top" title="🏆 Top Selling Durians" onClose={() => setActiveModal(null)}>
             <table className="w-full text-left border-collapse text-lg">
               <thead><tr className="border-b-4 border-gray-300"><th className="p-4 text-gray-600 font-bold">Type</th><th className="p-4 text-gray-600 font-bold text-center">Weight</th><th className="p-4 text-gray-600 font-bold text-right">Revenue</th></tr></thead>
-              <tbody>{topSellers.map((item) => (<tr key={item.type} className="border-b border-gray-200 hover:bg-gray-50"><td className="p-4 font-black">{item.type}</td><td className="p-4 text-center">{item.weight.toFixed(2)} kg</td><td className="p-4 font-black text-green-600 text-right">RM {item.revenue.toFixed(2)}</td></tr>))}</tbody>
+              <tbody>{topSellers.map((item) => (<tr key={item.type} className="border-b border-gray-200 hover:bg-gray-50"><td className="p-4 font-black">{item.type}</td><td className="p-4 text-center">{item.weight.toFixed(3)} kg</td><td className="p-4 font-black text-green-600 text-right">RM {item.revenue.toFixed(3)}</td></tr>))}</tbody>
               <tfoot>
                 <tr className="bg-gray-100 border-t-4 border-gray-300">
                   <td className="p-4 font-black text-gray-800 text-right uppercase tracking-widest">Grand Total:</td>
-                  <td className="p-4 font-black text-gray-800 text-center">{totalTopWeight.toFixed(2)} kg</td>
-                  <td className="p-4 font-black text-green-700 text-right">RM {totalTopRev.toFixed(2)}</td>
+                  <td className="p-4 font-black text-gray-800 text-center">{totalTopWeight.toFixed(3)} kg</td>
+                  <td className="p-4 font-black text-green-700 text-right">RM {totalTopRev.toFixed(3)}</td>
                 </tr>
               </tfoot>
             </table>
@@ -207,16 +221,16 @@ export default function ReportsModule() {
                       <div>{sale.order_type === 'eat_here' ? `🍽️ Eat Here (Table ${sale.table_number})` : sale.order_type === 'pack' ? '🛍️ Pack' : sale.order_type === 'delivery' ? '🛵 Delivery' : '🚶 Walk-in'}</div>
                       <div className="mt-1">{sale.payment_method === 'cash' ? '💵 Cash' : '📱 QR Pay'}</div>
                     </td>
-                    <td className="p-4 font-black text-green-700 text-right text-xl">RM {sale.total_price.toFixed(2)}</td>
+                    <td className="p-4 font-black text-green-700 text-right text-xl">RM {sale.total_price.toFixed(3)}</td>
                   </tr>
                 ))}
               </tbody>
               <tfoot>
                 <tr className="bg-gray-100 border-t-4 border-gray-300">
                   <td className="p-4 font-black text-gray-800 text-right uppercase tracking-widest">Grand Total:</td>
-                  <td className="p-4 font-black text-gray-800">{totalQty} pcs / {totalWeight.toFixed(2)} kg</td>
+                  <td className="p-4 font-black text-gray-800">{totalQty} pcs / {totalWeight.toFixed(3)} kg</td>
                   <td className="p-4"></td>
-                  <td className="p-4 font-black text-green-700 text-right text-xl">RM {totalRevenue.toFixed(2)}</td>
+                  <td className="p-4 font-black text-green-700 text-right text-xl">RM {totalRevenue.toFixed(3)}</td>
                 </tr>
               </tfoot>
             </table>
@@ -239,14 +253,14 @@ export default function ReportsModule() {
                       {exp.supplier_name && <div className="text-sm font-bold text-green-700 mt-1">Sup: {exp.supplier_name}</div>}
                       {exp.receipt_url && <a href={exp.receipt_url} target="_blank" rel="noreferrer" className="text-xs text-green-600 underline hover:text-green-800 mt-1 inline-block">📄 View Receipt</a>}
                     </td>
-                    <td className="p-4 font-black text-right text-yellow-600">RM {Math.abs(exp.total_cost_rm).toFixed(2)}</td>
+                    <td className="p-4 font-black text-right text-yellow-600">RM {Math.abs(exp.total_cost_rm).toFixed(3)}</td>
                   </tr>
                 ))}
               </tbody>
               <tfoot>
                 <tr className="bg-yellow-50 border-t-4 border-yellow-300">
                   <td colSpan={3} className="p-4 font-black text-yellow-900 text-right uppercase tracking-widest">Total Expenses:</td>
-                  <td className="p-4 font-black text-yellow-700 text-right text-xl">RM {totalExpenses.toFixed(2)}</td>
+                  <td className="p-4 font-black text-yellow-700 text-right text-xl">RM {totalExpenses.toFixed(3)}</td>
                 </tr>
               </tfoot>
             </table>
@@ -263,7 +277,7 @@ export default function ReportsModule() {
                 <tr className="bg-yellow-100 border-t-4 border-yellow-300">
                   <td className="p-4 font-black text-yellow-900 text-right uppercase tracking-widest">Total Low Stock:</td>
                   <td className="p-4 font-black text-yellow-900 text-center">{totalLowQty} pcs</td>
-                  <td className="p-4 font-black text-yellow-900 text-right">{totalLowWeight.toFixed(2)} kg</td>
+                  <td className="p-4 font-black text-yellow-900 text-right">{totalLowWeight.toFixed(3)} kg</td>
                 </tr>
               </tfoot>
             </table>
@@ -287,15 +301,15 @@ export default function ReportsModule() {
         <div className="flex justify-between items-center mb-10 gap-4 break-inside-avoid">
           <div className="flex-1 bg-green-50 p-5 rounded-2xl border-2 border-green-200 text-center shadow-sm">
             <p className="font-extrabold text-green-800 uppercase text-xs mb-1 tracking-wider">Total Revenue</p>
-            <p className="text-3xl font-black text-green-700">RM {totalRevenue.toFixed(2)}</p>
+            <p className="text-3xl font-black text-green-700">RM {totalRevenue.toFixed(3)}</p>
           </div>
           <div className="flex-1 bg-gray-50 p-5 rounded-2xl border-2 border-gray-200 text-center shadow-sm">
             <p className="font-extrabold text-gray-800 uppercase text-xs mb-1 tracking-wider">Total Expenses</p>
-            <p className="text-3xl font-black text-yellow-600">RM {totalExpenses.toFixed(2)}</p>
+            <p className="text-3xl font-black text-yellow-600">RM {totalExpenses.toFixed(3)}</p>
           </div>
           <div className="flex-1 bg-yellow-50 p-5 rounded-2xl border-2 border-yellow-300 text-center shadow-sm">
             <p className="font-extrabold text-yellow-900 uppercase text-xs mb-1 tracking-wider">Net Profit</p>
-            <p className="text-3xl font-black text-yellow-700">RM {grossProfit.toFixed(2)}</p>
+            <p className="text-3xl font-black text-yellow-700">RM {grossProfit.toFixed(3)}</p>
           </div>
         </div>
 
@@ -314,16 +328,16 @@ export default function ReportsModule() {
                 {topSellers.map((item, index) => (
                   <tr key={item.type} className={`break-inside-avoid ${index % 2 === 0 ? 'bg-white' : 'bg-gray-50'}`}>
                     <td className="border-b border-gray-200 p-3 font-extrabold text-gray-800">{item.type}</td>
-                    <td className="border-b border-gray-200 p-3 text-center font-semibold text-gray-700">{item.weight.toFixed(2)} kg</td>
-                    <td className="border-b border-gray-200 p-3 text-right font-black text-green-700">RM {item.revenue.toFixed(2)}</td>
+                    <td className="border-b border-gray-200 p-3 text-center font-semibold text-gray-700">{item.weight.toFixed(3)} kg</td>
+                    <td className="border-b border-gray-200 p-3 text-right font-black text-green-700">RM {item.revenue.toFixed(3)}</td>
                   </tr>
                 ))}
               </tbody>
               <tfoot>
                 <tr className="bg-green-100 border-t-4 border-green-300">
                   <td className="p-3 font-black text-green-900 text-right uppercase tracking-widest">Grand Total:</td>
-                  <td className="p-3 font-black text-green-900 text-center">{totalTopWeight.toFixed(2)} kg</td>
-                  <td className="p-3 font-black text-green-900 text-right text-lg">RM {totalTopRev.toFixed(2)}</td>
+                  <td className="p-3 font-black text-green-900 text-center">{totalTopWeight.toFixed(3)} kg</td>
+                  <td className="p-3 font-black text-green-900 text-right text-lg">RM {totalTopRev.toFixed(3)}</td>
                 </tr>
               </tfoot>
             </table>
@@ -363,7 +377,7 @@ export default function ReportsModule() {
                       <div className="mb-1">Type: <span className="text-green-800">{sale.order_type === 'eat_here' ? `Eat Here (Table ${sale.table_number})` : sale.order_type === 'pack' ? 'Pack' : sale.order_type === 'delivery' ? 'Delivery' : 'Walk-in'}</span></div>
                       <div>Pay: <span className="text-green-800">{sale.payment_method}</span></div>
                     </td>
-                    <td className="border-b border-gray-200 p-3 text-right font-black text-green-700 text-base">RM {sale.total_price.toFixed(2)}</td>
+                    <td className="border-b border-gray-200 p-3 text-right font-black text-green-700 text-base">RM {sale.total_price.toFixed(3)}</td>
                   </tr>
                 ))}
                 {filteredSales.length === 0 && <tr><td colSpan={4} className="p-4 text-center italic text-gray-500 bg-white">No sales recorded.</td></tr>}
@@ -371,9 +385,9 @@ export default function ReportsModule() {
               <tfoot>
                 <tr className="bg-gray-100 border-t-4 border-gray-300">
                   <td className="p-3 font-black text-gray-900 text-right uppercase tracking-widest">Grand Total:</td>
-                  <td className="p-3 font-black text-gray-900">{totalQty} pcs / {totalWeight.toFixed(2)} kg</td>
+                  <td className="p-3 font-black text-gray-900">{totalQty} pcs / {totalWeight.toFixed(3)} kg</td>
                   <td className="p-3"></td>
-                  <td className="p-3 font-black text-green-700 text-right text-lg">RM {totalRevenue.toFixed(2)}</td>
+                  <td className="p-3 font-black text-green-700 text-right text-lg">RM {totalRevenue.toFixed(3)}</td>
                 </tr>
               </tfoot>
             </table>
@@ -404,7 +418,7 @@ export default function ReportsModule() {
                       <div>{exp.description}</div>
                       {exp.supplier_name && <div className="text-xs font-bold text-green-700 mt-1">Supplier: {exp.supplier_name}</div>}
                     </td>
-                    <td className={`border-b border-gray-200 p-3 text-right font-black text-base text-yellow-700`}>{exp.total_cost_rm < 0 ? '+' : ''}{Math.abs(exp.total_cost_rm).toFixed(2)}</td>
+                    <td className={`border-b border-gray-200 p-3 text-right font-black text-base text-yellow-700`}>{exp.total_cost_rm < 0 ? '+' : ''}{Math.abs(exp.total_cost_rm).toFixed(3)}</td>
                   </tr>
                 ))}
                 {filteredExpenses.length === 0 && <tr><td colSpan={4} className="p-4 text-center italic text-gray-500 bg-white">No expenses recorded.</td></tr>}
@@ -412,7 +426,7 @@ export default function ReportsModule() {
               <tfoot>
                 <tr className="bg-yellow-100 border-t-4 border-yellow-300">
                   <td colSpan={3} className="p-3 font-black text-yellow-900 text-right uppercase tracking-widest">Total Expenses:</td>
-                  <td className="p-3 font-black text-yellow-700 text-right text-lg">RM {totalExpenses.toFixed(2)}</td>
+                  <td className="p-3 font-black text-yellow-700 text-right text-lg">RM {totalExpenses.toFixed(3)}</td>
                 </tr>
               </tfoot>
             </table>
@@ -444,7 +458,7 @@ export default function ReportsModule() {
                 <tr className="bg-gray-100 border-t-4 border-gray-300">
                   <td className="p-3 font-black text-gray-900 text-right uppercase tracking-widest">Total Low Stock:</td>
                   <td className="p-3 font-black text-gray-900 text-center">{totalLowQty} pcs</td>
-                  <td className="p-3 font-black text-gray-900 text-right text-lg">{totalLowWeight.toFixed(2)} kg</td>
+                  <td className="p-3 font-black text-gray-900 text-right text-lg">{totalLowWeight.toFixed(3)} kg</td>
                 </tr>
               </tfoot>
             </table>
