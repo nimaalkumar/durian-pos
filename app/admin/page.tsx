@@ -321,15 +321,23 @@ export default function AdminModule() {
   return (
     <div className="pb-10 text-black bg-gray-50 min-h-screen relative">
       
-      {/* TOP NAVIGATION BAR */}
-      <div className="flex justify-between items-center bg-gray-200 p-3 shadow-sm print:hidden w-full">
-        <div className="flex gap-2">
-          <button onClick={() => router.back()} className="bg-gray-300 hover:bg-gray-400 text-gray-800 px-4 py-2 rounded-lg font-bold transition-colors">← Back</button>
-          <button onClick={() => window.location.reload()} className="bg-gray-300 hover:bg-gray-400 text-gray-800 px-4 py-2 rounded-lg font-bold transition-colors">🔄 Refresh</button>
+      {/* 🟢 STICKY GREEN NAVIGATION BAR (SYMBOLS ONLY) */}
+      <div className="sticky top-0 z-[100] flex justify-between items-center bg-green-700 p-3 shadow-lg print:hidden w-full border-b-4 border-green-800">
+        <div className="flex gap-3">
+          <button onClick={() => router.back()} title="Back" className="bg-white/20 hover:bg-white/30 text-white w-12 h-12 flex items-center justify-center rounded-xl transition-all text-2xl active:scale-95 shadow-sm">
+            ⬅️
+          </button>
+          <button onClick={() => window.location.reload()} title="Refresh" className="bg-white/20 hover:bg-white/30 text-white w-12 h-12 flex items-center justify-center rounded-xl transition-all text-2xl active:scale-95 shadow-sm">
+            🔄
+          </button>
         </div>
-        <div className="flex gap-2">
-          <button onClick={() => router.push('/profile')} className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg font-bold transition-colors">👤 Profile</button>
-          <button onClick={async () => { await supabase.auth.signOut(); router.push('/auth'); }} className="bg-yellow-500 hover:bg-yellow-600 text-gray-900 px-4 py-2 rounded-lg font-bold transition-colors">🚪 Logout</button>
+        <div className="flex gap-3">
+          <button onClick={() => router.push('/profile')} title="Profile" className="bg-white/20 hover:bg-white/30 text-white w-12 h-12 flex items-center justify-center rounded-xl transition-all text-2xl active:scale-95 shadow-sm">
+            👤
+          </button>
+          <button onClick={async () => { await supabase.auth.signOut(); router.push('/auth'); }} title="Logout" className="bg-red-500 hover:bg-red-600 text-white w-12 h-12 flex items-center justify-center rounded-xl transition-all text-2xl active:scale-95 shadow-md">
+            🚪
+          </button>
         </div>
       </div>
 
