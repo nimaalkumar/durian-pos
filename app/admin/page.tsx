@@ -61,7 +61,7 @@ function DurianRow({ item, onSave, onDelete, onViewBatches }: { item: any, onSav
         {item.type}
         <div className="mt-2">
            <button onClick={() => onViewBatches(item)} className="text-xs bg-gray-200 hover:bg-yellow-300 text-gray-700 font-bold py-1.5 px-3 rounded-lg transition-colors shadow-sm">
-              📦 View Stock Batches
+              📦 Batches
            </button>
         </div>
       </td>
@@ -341,8 +341,8 @@ export default function AdminModule() {
 
       <div className="flex flex-col md:flex-row justify-between items-center mb-8 gap-4 bg-white p-6 rounded-3xl shadow-sm border-2 border-gray-200 m-4 mt-8">
         <div>
-          <h1 className="text-4xl font-black text-green-900 tracking-tight">Admin Control Panel</h1>
-          <p className="text-gray-500 font-bold mt-1">Logged in as: <span className="text-green-700">{adminName}</span></p>
+          <h1 className="text-4xl font-black text-green-900 tracking-tight">Inventory Management</h1>
+          <p className="text-gray-500 font-bold mt-1">User: <span className="text-green-700">{adminName}</span></p>
         </div>
       </div>
       
@@ -353,6 +353,9 @@ export default function AdminModule() {
         </button>
         <button onClick={() => setActiveModal('stockIn')} className="bg-green-600 text-white p-8 rounded-3xl shadow-lg hover:bg-green-700 hover:scale-105 transition-all text-left flex flex-col justify-between h-48 group">
           <span className="text-4xl">📥</span><div><h3 className="text-xl font-black group-hover:underline">Durian Stock In</h3><p className="font-medium text-green-100 mt-1">Add batches & supplier</p></div>
+        <button onClick={() => setActiveModal('packStock')} className="bg-gray-200 text-gray-800 p-8 rounded-3xl shadow-lg border-2 border-gray-300 hover:bg-gray-300 hover:scale-105 transition-all text-left flex flex-col justify-between h-48 group">
+          <span className="text-4xl">🛍️</span><div><h3 className="text-xl font-black group-hover:underline">Pack Restock</h3><p className="font-bold text-gray-600 mt-1">Add bags & boxes</p></div>
+        </button>
         </button>
         <button onClick={() => setActiveModal('spoilage')} className="bg-yellow-500 text-black p-8 rounded-3xl shadow-lg hover:bg-yellow-600 hover:scale-105 transition-all text-left flex flex-col justify-between h-48 group">
           <span className="text-4xl">🔄</span><div><h3 className="text-xl font-black group-hover:underline">Spoilage & Returns</h3><p className="font-bold text-yellow-900 mt-1">Record lost & returns</p></div>
@@ -362,9 +365,6 @@ export default function AdminModule() {
         </button>
         <button onClick={() => setActiveModal('viewReceipts')} className="bg-gray-600 text-white p-8 rounded-3xl shadow-lg hover:bg-gray-700 hover:scale-105 transition-all text-left flex flex-col justify-between h-48 group">
           <span className="text-4xl">📄</span><div><h3 className="text-xl font-black group-hover:underline">View Documents</h3><p className="font-bold text-gray-300 mt-1">Check logs & docs</p></div>
-        </button>
-        <button onClick={() => setActiveModal('packStock')} className="bg-gray-200 text-gray-800 p-8 rounded-3xl shadow-lg border-2 border-gray-300 hover:bg-gray-300 hover:scale-105 transition-all text-left flex flex-col justify-between h-48 group">
-          <span className="text-4xl">🛍️</span><div><h3 className="text-xl font-black group-hover:underline">Pack Restock</h3><p className="font-bold text-gray-600 mt-1">Add bags & boxes</p></div>
         </button>
         <button onClick={() => setActiveModal('manageDurian')} className="bg-white border-4 border-green-600 text-green-900 p-8 rounded-3xl shadow-lg hover:bg-green-50 hover:scale-105 transition-all text-left flex flex-col justify-between h-48 group">
           <span className="text-4xl">✏️</span><div><h3 className="text-xl font-black group-hover:underline">Edit Durians</h3><p className="font-bold text-green-700 mt-1">Modify/Delete</p></div>
