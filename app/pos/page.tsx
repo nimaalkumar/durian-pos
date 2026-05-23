@@ -42,7 +42,7 @@ export default function POSSystem() {
   // CART STATE
   const [selectedDurian, setSelectedDurian] = useState<any>(null);
   const [selectedBatch, setSelectedBatch] = useState<string>('auto'); // NEW: Batch Selector
-  const [currentQty, setCurrentQty] = useState(1);
+  const [currentQty, setCurrentQty] = useState<number | string>('');
   const [currentWeight, setCurrentWeight] = useState('');
   const [cart, setCart] = useState<any[]>([]);
   
@@ -52,9 +52,9 @@ export default function POSSystem() {
   const [tableNumber, setTableNumber] = useState(''); 
   const [deliveryFee, setDeliveryFee] = useState('');
   const [customPrice, setCustomPrice] = useState(''); 
-  const [bagsUsed, setBagsUsed] = useState(0);
-  const [tupMUsed, setTupMUsed] = useState(0);
-  const [tupLUsed, setTupLUsed] = useState(0);
+  const [bagsUsed, setBagsUsed] = useState<number | string>('');
+  const [tupMUsed, setTupMUsed] = useState<number | string>('');
+  const [tupLUsed, setTupLUsed] = useState<number | string>('');
 
   const [toast, setToast] = useState<{show: boolean, msg: string, type: 'error'|'success'}>({show: false, msg: '', type: 'success'});
   const showToast = (msg: string, type: 'error'|'success' = 'success') => {
@@ -80,7 +80,11 @@ export default function POSSystem() {
 
   const addToCart = () => {
     if (!selectedDurian || !currentWeight) return showToast("❌ Enter a weight to add!", "error");
+    if (!currentQty || currentQty === '') return showToast("❌ Enter a quantity (pcs)!", "error");
     
+    // Safely parse the quantity
+    const finalQty = typeof currentQty === 'number' ? currentQty : parseInt(currentQty as string);
+
     // DETERMINE MAX QTY & WEIGHT BASED ON SELECTED BATCH
     let maxQty = selectedDurian.total_durians;
     let maxWeight = selectedDurian.total_weight_kg;
@@ -94,8 +98,7 @@ export default function POSSystem() {
     const currentCartWeight = cart.filter(item => item.type === selectedDurian.type && item.batch === selectedBatch).reduce((sum, item) => sum + item.weight, 0);
     const totalRequestedWeight = currentCartWeight + parseFloat(currentWeight);
     
-    // 🐛 FIXED: Renamed this from currentCartQty to totalRequestedQty so it matches the if-statement!
-    const totalRequestedQty = cart.filter(item => item.type === selectedDurian.type && item.batch === selectedBatch).reduce((sum, item) => sum + item.qty, 0) + currentQty;
+    const totalRequestedQty = cart.filter(item => item.type === selectedDurian.type && item.batch === selectedBatch).reduce((sum, item) => sum + item.qty, 0) + finalQty;
 
     if (totalRequestedWeight > maxWeight) {
       return showToast(`❌ NOT ENOUGH STOCK IN THIS BATCH! You requested ${totalRequestedWeight.toFixed(3)}kg, but only ${maxWeight.toFixed(3)}kg is available.`, "error");
@@ -109,7 +112,7 @@ export default function POSSystem() {
 
     const newItem = {
       type: selectedDurian.type,
-      qty: currentQty,
+      qty: finalQty,
       weight: parseFloat(currentWeight),
       price_per_kg: selectedDurian.price_per_kg,
       total_price: itemPrice,
@@ -120,7 +123,7 @@ export default function POSSystem() {
     setCart([...cart, newItem]);
     setSelectedDurian(null);
     setCurrentWeight('');
-    setCurrentQty(1);
+    setCurrentQty(''); // Reset to empty instead of 1
     setSelectedBatch('auto');
     showToast(`✅ Added ${newItem.type} to cart!`);
   };
@@ -185,9 +188,10 @@ export default function POSSystem() {
             if (item) await supabase.from('packaging_inventory').update({ quantity: item.quantity - usedQty }).eq('item_name', name);
           }
         };
-        await deductPack('Plastic Bag', bagsUsed);
-        await deductPack('Tupperware M', tupMUsed);
-        await deductPack('Tupperware L', tupLUsed);
+        
+        await deductPack('Plastic Bag', bagsUsed === '' ? 0 : Number(bagsUsed));
+        await deductPack('Tupperware M', tupMUsed === '' ? 0 : Number(tupMUsed));
+        await deductPack('Tupperware L', tupLUsed === '' ? 0 : Number(tupLUsed));
 
         showToast(`✅ Payment Successful! Order No: ${orderNum}`);
         setTimeout(() => { window.location.reload(); }, 2000); 
@@ -263,7 +267,7 @@ export default function POSSystem() {
                         <span className="font-bold text-green-800 bg-green-200 px-3 py-1 rounded-lg">RM {selectedDurian.price_per_kg}/kg</span>
                     </div>
 
-                    {/* NEW: BATCH SELECTOR */}
+                    {/* BATCH SELECTOR */}
                     {selectedDurian.stock_batches && selectedDurian.stock_batches.length > 0 && (
                       <div className="mb-4 bg-white p-3 rounded-xl border border-green-200">
                          <label className="block text-xs font-bold text-green-800 uppercase tracking-wider mb-2">Select Stock Batch:</label>
@@ -279,7 +283,7 @@ export default function POSSystem() {
                     <div className="grid grid-cols-2 gap-4 mb-4">
                       <div>
                         <label className="block text-xs font-bold text-gray-600 uppercase tracking-wider mb-1">Qty (pcs)</label>
-                        <input type="number" value={currentQty} onChange={e=>setCurrentQty(parseInt(e.target.value)||1)} className={inputClass} />
+                        <input type="number" value={currentQty} onChange={e => setCurrentQty(e.target.value === '' ? '' : parseInt(e.target.value))} className={inputClass} placeholder="e.g. 1" />
                       </div>
                       <div>
                         <label className="block text-xs font-bold text-gray-600 uppercase tracking-wider mb-1">Weight (kg)</label>
@@ -339,9 +343,9 @@ export default function POSSystem() {
 
             <h3 className="font-bold text-gray-800 mt-6 mb-3 border-t border-gray-200 pt-6">🛍️ Packaging Used</h3>
             <div className="grid grid-cols-3 gap-4 mb-6">
-              <div><label className="block text-xs font-bold text-gray-500 mb-2 uppercase">Bags</label><input type="number" min="0" value={bagsUsed} onChange={(e) => setBagsUsed(parseInt(e.target.value) || 0)} className="w-full border-2 border-gray-300 p-3 rounded-xl text-center font-bold" /></div>
-              <div><label className="block text-xs font-bold text-gray-500 mb-2 uppercase">Tup M</label><input type="number" min="0" value={tupMUsed} onChange={(e) => setTupMUsed(parseInt(e.target.value) || 0)} className="w-full border-2 border-gray-300 p-3 rounded-xl text-center font-bold" /></div>
-              <div><label className="block text-xs font-bold text-gray-500 mb-2 uppercase">Tup L</label><input type="number" min="0" value={tupLUsed} onChange={(e) => setTupLUsed(parseInt(e.target.value) || 0)} className="w-full border-2 border-gray-300 p-3 rounded-xl text-center font-bold" /></div>
+              <div><label className="block text-xs font-bold text-gray-500 mb-2 uppercase">Bags</label><input type="number" min="0" placeholder="0" value={bagsUsed} onChange={(e) => setBagsUsed(e.target.value === '' ? '' : parseInt(e.target.value))} className="w-full border-2 border-gray-300 p-3 rounded-xl text-center font-bold" /></div>
+              <div><label className="block text-xs font-bold text-gray-500 mb-2 uppercase">Tup M</label><input type="number" min="0" placeholder="0" value={tupMUsed} onChange={(e) => setTupMUsed(e.target.value === '' ? '' : parseInt(e.target.value))} className="w-full border-2 border-gray-300 p-3 rounded-xl text-center font-bold" /></div>
+              <div><label className="block text-xs font-bold text-gray-500 mb-2 uppercase">Tup L</label><input type="number" min="0" placeholder="0" value={tupLUsed} onChange={(e) => setTupLUsed(e.target.value === '' ? '' : parseInt(e.target.value))} className="w-full border-2 border-gray-300 p-3 rounded-xl text-center font-bold" /></div>
             </div>
 
             <div className="mb-2 border-t border-gray-200 pt-6">
