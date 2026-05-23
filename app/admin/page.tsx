@@ -3,7 +3,7 @@ import { useState, useEffect, useRef } from 'react';
 import { supabase } from '../../lib/supabase';
 import { useRouter } from 'next/navigation';
 
-// --- SHARED STYLES ---
+// --- SHARED STYLES (STRICT GRAY, YELLOW, GREEN) ---
 const inputClass = "w-full border-2 border-gray-300 p-3 rounded-xl text-black bg-gray-50 focus:bg-white focus:ring-2 focus:ring-green-400 outline-none transition-all font-semibold";
 const modalBtnClass = "bg-green-600 text-white font-extrabold py-4 rounded-xl hover:bg-green-700 shadow-md transition-all active:scale-[0.98] text-lg w-full mt-4";
 const deleteBtnClass = "bg-gray-200 text-gray-800 font-bold px-4 py-2 rounded-lg hover:bg-yellow-400 hover:text-black transition-colors";
@@ -50,29 +50,24 @@ const Modal = ({ title, onClose, children }: { title: string, onClose: () => voi
   </div>
 );
 
-function DurianRow({ item, onSave, onDelete }: { item: any, onSave: (type: string, data: any) => void, onDelete: (type: string) => void }) {
+function DurianRow({ item, onSave, onDelete, onViewBatches }: { item: any, onSave: (type: string, data: any) => void, onDelete: (type: string) => void, onViewBatches: (item: any) => void }) {
   const qtyRef = useRef<HTMLInputElement>(null);
   const weightRef = useRef<HTMLInputElement>(null);
   const priceRef = useRef<HTMLInputElement>(null);
-
-  const todayStr = new Date().toISOString().split('T')[0];
-  const batches = item.stock_batches || [];
-  const newStock = batches.filter((b:any) => b.date === todayStr);
-  const oldStock = batches.filter((b:any) => b.date !== todayStr);
 
   return (
     <tr className="border-b border-gray-200 hover:bg-yellow-50 transition-colors bg-white">
       <td className="p-4 font-extrabold text-gray-900 text-lg">
         {item.type}
-        <div className="mt-2 text-xs font-bold bg-gray-50 p-3 rounded-lg border border-gray-200 shadow-inner">
-           {oldStock.length > 0 && <div className="text-gray-600 mb-1">📦 Old: {oldStock.map((b:any) => `${b.qty}pcs (${b.date})`).join(' | ')}</div>}
-           {newStock.length > 0 && <div className="text-green-700">🆕 New (Today): {newStock.reduce((sum:number,b:any)=>sum+b.qty,0)}pcs</div>}
-           {batches.length === 0 && <div className="text-gray-400 italic">No batch tracking data yet.</div>}
+        <div className="mt-2">
+           <button onClick={() => onViewBatches(item)} className="text-xs bg-gray-200 hover:bg-yellow-300 text-gray-700 font-bold py-1.5 px-3 rounded-lg transition-colors shadow-sm">
+              📦 View Stock Batches
+           </button>
         </div>
       </td>
-      <td className="p-4 align-top pt-6"><input type="number" ref={qtyRef} defaultValue={item.total_durians} className="border-2 border-gray-300 p-2 rounded-lg w-20 text-center font-bold" /></td>
-      <td className="p-4 align-top pt-6"><input type="number" step="0.001" ref={weightRef} defaultValue={Number(item.total_weight_kg).toFixed(3)} className="border-2 border-gray-300 p-2 rounded-lg w-24 text-center font-bold" /></td>
-      <td className="p-4 align-top pt-6"><input type="number" step=\"0.1\" ref={priceRef} defaultValue={item.price_per_kg} className="border-2 border-green-300 bg-green-50 p-2 rounded-lg w-24 text-center font-bold text-green-800" /></td>
+      <td className="p-4 align-top pt-6"><input type="number" ref={qtyRef} defaultValue={item.total_durians} className="border-2 border-gray-300 p-2 rounded-lg w-20 text-center font-bold text-black" /></td>
+      <td className="p-4 align-top pt-6"><input type="number" step="0.001" ref={weightRef} defaultValue={Number(item.total_weight_kg).toFixed(3)} className="border-2 border-gray-300 p-2 rounded-lg w-28 text-center font-bold text-black" /></td>
+      <td className="p-4 align-top pt-6"><input type="number" step="0.1" ref={priceRef} defaultValue={item.price_per_kg} className="border-2 border-green-300 bg-green-50 p-2 rounded-lg w-24 text-center font-bold text-green-800" /></td>
       <td className="p-4 text-center flex justify-center gap-2 align-top pt-6">
         <button onClick={() => onSave(item.type, { total_durians: qtyRef.current?.value, total_weight_kg: weightRef.current?.value, price_per_kg: priceRef.current?.value })} className="bg-green-600 text-white px-4 py-2 rounded-lg font-bold hover:bg-green-700 shadow-sm active:scale-95">Save</button>
         <button onClick={() => onDelete(item.type)} className={deleteBtnClass}>Delete</button>
@@ -103,12 +98,17 @@ export default function AdminModule() {
   const [suppliers, setSuppliers] = useState<string[]>([]);
   const [expensesList, setExpensesList] = useState<any[]>([]); 
   const [activeModal, setActiveModal] = useState<string | null>(null);
+  const [viewBatchDurian, setViewBatchDurian] = useState<any>(null); // NEW: State for Batch View Modal
 
+  // Form States
   const [stockForms, setStockForms] = useState([{ id: 1, type: '', isNew: false, newType: '', qty: '', weight: '', supplierPriceKg: '', newSellingPrice: '', isNewSupplier: false, supplierName: '', receiptFile: null as File | null }]);
+  
+  // Spoilage State
   const [spoilType, setSpoilType] = useState('');
   const [spoilAction, setSpoilAction] = useState('spoilage'); 
   const [spoilQty, setSpoilQty] = useState('');
   const [spoilWeight, setSpoilWeight] = useState('');
+  const [spoilBatch, setSpoilBatch] = useState('auto');
   const [refundAmount, setRefundAmount] = useState('');
   
   const [packItem, setPackItem] = useState('');
@@ -224,10 +224,25 @@ export default function AdminModule() {
 
     if (window.confirm(`Log ${spoilAction.replace('_', ' ')} for ${spoilQty} pcs of ${spoilType}?`)) {
       
-      if (spoilAction === 'spoilage' || spoilAction === 'return_supplier') {
-        const lostValue = parseFloat(spoilWeight) * target.price_per_kg;
-        const updatedBatches = processBatchFIFO(target.stock_batches || [], -parseInt(spoilQty), -parseFloat(spoilWeight));
+      let updatedBatches = [...(target.stock_batches || [])];
 
+      if (spoilAction === 'spoilage' || spoilAction === 'return_supplier') {
+        
+        // DEDUCT FROM BATCHES
+        if (spoilBatch === 'auto') {
+          updatedBatches = processBatchFIFO(updatedBatches, -parseInt(spoilQty), -parseFloat(spoilWeight));
+        } else {
+          const bIdx = parseInt(spoilBatch);
+          const selectedB = updatedBatches[bIdx];
+          if (parseInt(spoilQty) > selectedB.qty || parseFloat(spoilWeight) > selectedB.weight) {
+             return showToast(`❌ Cannot deduct more than what's in this batch! (Max: ${selectedB.qty}pcs / ${selectedB.weight}kg)`, "error");
+          }
+          selectedB.qty -= parseInt(spoilQty);
+          selectedB.weight -= parseFloat(spoilWeight);
+          updatedBatches = updatedBatches.filter(b => b.qty > 0 || b.weight > 0); // Remove empty batches
+        }
+
+        const lostValue = parseFloat(spoilWeight) * target.price_per_kg;
         await supabase.from('spoilage_returns').insert({ durian_type: spoilType, action_type: spoilAction, quantity: parseInt(spoilQty), weight_kg: parseFloat(spoilWeight), lost_value: lostValue, user_name: adminName });
         await supabase.from('durian_inventory').update({ total_durians: target.total_durians - parseInt(spoilQty), total_weight_kg: target.total_weight_kg - parseFloat(spoilWeight), stock_batches: updatedBatches }).eq('type', spoilType);
         
@@ -236,8 +251,9 @@ export default function AdminModule() {
         }
       } 
       else if (spoilAction === 'customer_return') {
-        const updatedBatches = processBatchFIFO(target.stock_batches || [], parseInt(spoilQty), parseFloat(spoilWeight));
-
+        // ADD BACK TO BATCHES
+        updatedBatches = processBatchFIFO(updatedBatches, parseInt(spoilQty), parseFloat(spoilWeight));
+        
         await supabase.from('spoilage_returns').insert({ durian_type: spoilType, action_type: 'customer_return', quantity: parseInt(spoilQty), weight_kg: parseFloat(spoilWeight), lost_value: 0, user_name: adminName });
         await supabase.from('durian_inventory').update({ total_durians: target.total_durians + parseInt(spoilQty), total_weight_kg: target.total_weight_kg + parseFloat(spoilWeight), stock_batches: updatedBatches }).eq('type', spoilType);
         
@@ -247,7 +263,7 @@ export default function AdminModule() {
       }
       
       showToast(`✅ Action logged successfully!`);
-      setSpoilQty(''); setSpoilWeight(''); setSpoilType(''); setRefundAmount('');
+      setSpoilQty(''); setSpoilWeight(''); setSpoilType(''); setRefundAmount(''); setSpoilBatch('auto');
       fetchData();
       setActiveModal(null);
     }
@@ -299,9 +315,13 @@ export default function AdminModule() {
     }
   };
 
+  const selectedSpoilDurian = inventory.find(i => i.type === spoilType);
+  const availableBatches = selectedSpoilDurian?.stock_batches || [];
+
   return (
     <div className="pb-10 text-black bg-gray-50 min-h-screen relative">
       
+      {/* TOP NAVIGATION BAR */}
       <div className="flex justify-between items-center bg-gray-200 p-3 shadow-sm print:hidden w-full">
         <div className="flex gap-2">
           <button onClick={() => router.back()} className="bg-gray-300 hover:bg-gray-400 text-gray-800 px-4 py-2 rounded-lg font-bold transition-colors">← Back</button>
@@ -326,6 +346,7 @@ export default function AdminModule() {
         </div>
       </div>
       
+      {/* DASHBOARD GRID */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 px-4">
         <button onClick={() => router.push('/today_sales')} className="bg-green-500 text-white p-8 rounded-3xl shadow-lg hover:bg-green-600 hover:scale-105 transition-all text-left flex flex-col justify-between h-48 group">
           <span className="text-4xl">📊</span><div><h3 className="text-xl font-black group-hover:underline">Today's Sales</h3><p className="font-bold text-green-900 mt-1">Live tracking & Edits</p></div>
@@ -353,13 +374,20 @@ export default function AdminModule() {
         </button>
       </div>
 
+      {/* --- MODALS --- */}
+
+      {/* DOCUMENT VIEWER MODAL */}
       {activeModal === 'viewReceipts' && (
         <Modal title="📄 Document & Expense Viewer" onClose={() => setActiveModal(null)}>
           <div className="overflow-x-auto w-full">
             <table className="w-full min-w-[600px] text-left border-collapse">
               <thead>
                 <tr className="border-b-4 border-gray-300">
-                  <th className="p-4">Date</th><th className="p-4">Category</th><th className="p-4">Details & Supplier</th><th className="p-4 text-right">Amount</th><th className="p-4 text-center">Document</th>
+                  <th className="p-4">Date</th>
+                  <th className="p-4">Category</th>
+                  <th className="p-4">Details & Supplier</th>
+                  <th className="p-4 text-right">Amount</th>
+                  <th className="p-4 text-center">Document</th>
                 </tr>
               </thead>
               <tbody>
@@ -390,6 +418,7 @@ export default function AdminModule() {
         </Modal>
       )}
 
+      {/* STOCK IN WITH SUPPLIER DROPDOWN */}
       {activeModal === 'stockIn' && (
         <Modal title="📥 Durian Stock In" onClose={() => setActiveModal(null)}>
           <button onClick={handleAddStockRow} className="mb-4 bg-gray-200 text-gray-800 font-bold px-5 py-2.5 rounded-xl hover:bg-yellow-400 shadow-sm transition-colors w-full md:w-auto">+ Add Another Durian</button>
@@ -439,15 +468,34 @@ export default function AdminModule() {
         </Modal>
       )}
 
+      {/* SPOILAGE & RETURNS UPGRADED TO BATCH SELECTION */}
       {activeModal === 'spoilage' && (
         <Modal title="🔄 Spoilage & Returns" onClose={() => setActiveModal(null)}>
           <div className="space-y-4">
-            <select value={spoilType} onChange={e=>setSpoilType(e.target.value)} className={inputClass}><option value="">Select Durian...</option>{inventory.map(i => <option key={i.type} value={i.type}>{i.type}</option>)}</select>
+            <select value={spoilType} onChange={e=>{setSpoilType(e.target.value); setSpoilBatch('auto');}} className={inputClass}>
+               <option value="">Select Durian...</option>
+               {inventory.map(i => <option key={i.type} value={i.type}>{i.type}</option>)}
+            </select>
+            
             <select value={spoilAction} onChange={e=>setSpoilAction(e.target.value)} className={inputClass}>
                <option value="spoilage">🗑️ Spoilage (Rotten/Lost) [- Deduct Stock]</option>
                <option value="return_supplier">🚚 Return to Supplier [- Deduct Stock, Get Refund]</option>
                <option value="customer_return">🔄 Customer Return [+ Add Back Stock, Issue Refund]</option>
             </select>
+            
+            {/* NEW BATCH SELECTOR - Only shown when deducting stock */}
+            {spoilType && (spoilAction === 'spoilage' || spoilAction === 'return_supplier') && availableBatches.length > 0 && (
+               <div className="bg-gray-100 p-4 rounded-xl border border-gray-300">
+                 <label className="block text-xs font-bold text-gray-600 uppercase mb-2">Select Which Batch To Remove From:</label>
+                 <select value={spoilBatch} onChange={e=>setSpoilBatch(e.target.value)} className={inputClass}>
+                   <option value="auto">⚡ Auto (Deduct Oldest First / All Batches)</option>
+                   {availableBatches.map((b:any, idx:number) => (
+                     <option key={idx} value={idx}>Batch: {b.date} - Available: {b.qty}pcs / {Number(b.weight).toFixed(3)}kg</option>
+                   ))}
+                 </select>
+               </div>
+            )}
+
             <div className="grid grid-cols-2 gap-4">
               <input type="number" placeholder="Qty (pcs)" value={spoilQty} onChange={e=>setSpoilQty(e.target.value)} className={inputClass} />
               <input type="number" step="0.001" placeholder="Weight (kg)" value={spoilWeight} onChange={e=>setSpoilWeight(e.target.value)} className={inputClass} />
@@ -504,6 +552,7 @@ export default function AdminModule() {
         </Modal>
       )}
 
+      {/* MANAGE DURIANS TABLE */}
       {activeModal === 'manageDurian' && (
         <Modal title="✏️ Edit/Delete Durians" onClose={() => setActiveModal(null)}>
           <div className="overflow-x-auto w-full">
@@ -511,7 +560,10 @@ export default function AdminModule() {
               <thead><tr className="border-b-4 border-green-600"><th className="p-4">Type</th><th className="p-4 text-center">Qty</th><th className="p-4 text-center">Weight</th><th className="p-4 text-center">Price</th><th className="p-4 text-center">Actions</th></tr></thead>
               <tbody>
                 {inventory.map(item => (
-                  <DurianRow key={item.type} item={item} onDelete={deleteDurian} onSave={async (type, data) => {
+                  <DurianRow key={item.type} item={item} 
+                    onViewBatches={(item) => setViewBatchDurian(item)}
+                    onDelete={deleteDurian} 
+                    onSave={async (type, data) => {
                       const existingItem = inventory.find(i => i.type === type);
                       const updatedBatches = processBatchFIFO(existingItem?.stock_batches || [], parseInt(data.total_durians) - existingItem.total_durians, parseFloat(data.total_weight_kg) - existingItem.total_weight_kg);
                       await supabase.from('durian_inventory').update({ total_durians: parseInt(data.total_durians), total_weight_kg: parseFloat(data.total_weight_kg), price_per_kg: parseFloat(data.price_per_kg), stock_batches: updatedBatches }).eq('type', type);
@@ -522,6 +574,36 @@ export default function AdminModule() {
             </table>
           </div>
         </Modal>
+      )}
+
+      {/* NEW MODAL: BATCH VIEWER */}
+      {viewBatchDurian && (
+        <div className="fixed inset-0 bg-gray-900/90 z-[60] flex items-center justify-center p-4">
+          <div className="bg-white w-full max-w-md rounded-3xl shadow-2xl p-6 border-4 border-green-500">
+             <div className="flex justify-between items-center border-b-2 border-gray-200 pb-2 mb-4">
+                <h3 className="text-2xl font-black text-green-900">📦 Stock Batches: {viewBatchDurian.type}</h3>
+                <button onClick={() => setViewBatchDurian(null)} className="text-gray-500 font-bold hover:text-red-500 text-xl">✕</button>
+             </div>
+             <div className="space-y-3 max-h-[300px] overflow-y-auto">
+                {(!viewBatchDurian.stock_batches || viewBatchDurian.stock_batches.length === 0) ? (
+                   <p className="text-gray-500 italic text-center py-4">No specific batches tracked yet.</p>
+                ) : (
+                   viewBatchDurian.stock_batches.map((b:any, i:number) => (
+                      <div key={i} className={`p-4 rounded-xl border-2 flex justify-between items-center ${b.date === new Date().toISOString().split('T')[0] ? 'border-green-300 bg-green-50' : 'border-gray-200 bg-gray-50'}`}>
+                         <div>
+                            <span className="block text-xs font-bold text-gray-500 uppercase">{b.date === new Date().toISOString().split('T')[0] ? '🆕 New (Today)' : '📦 Old Stock'}</span>
+                            <span className="text-lg font-black text-gray-800">{b.date}</span>
+                         </div>
+                         <div className="text-right">
+                            <span className="block font-black text-green-700">{b.qty} pcs</span>
+                            <span className="text-sm font-bold text-gray-600">{Number(b.weight).toFixed(3)} kg</span>
+                         </div>
+                      </div>
+                   ))
+                )}
+             </div>
+          </div>
+        </div>
       )}
 
       {activeModal === 'managePack' && (

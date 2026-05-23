@@ -3,6 +3,36 @@ import { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabase';
 import { useRouter } from 'next/navigation';
 
+// --- FIFO BATCH PROCESSOR (Used for auto-deductions) ---
+const processBatchFIFO = (batches: any[], qtyChange: number, weightChange: number) => {
+  let newBatches = [...(batches || [])];
+  const todayStr = new Date().toISOString().split('T')[0];
+
+  if (qtyChange > 0 || weightChange > 0) {
+      let todayBatch = newBatches.find(b => b.date === todayStr);
+      if (todayBatch) {
+          todayBatch.qty += Math.max(0, qtyChange);
+          todayBatch.weight += Math.max(0, weightChange);
+      } else {
+          newBatches.push({ date: todayStr, qty: Math.max(0, qtyChange), weight: Math.max(0, weightChange) });
+      }
+  } else if (qtyChange < 0 || weightChange < 0) {
+      let qtyToDeduct = Math.abs(qtyChange);
+      let weightToDeduct = Math.abs(weightChange);
+      newBatches.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+      
+      for (let b of newBatches) {
+          if (qtyToDeduct <= 0 && weightToDeduct <= 0) break;
+          let qD = Math.min(b.qty, qtyToDeduct);
+          let wD = Math.min(b.weight, weightToDeduct);
+          b.qty -= qD; b.weight -= wD;
+          qtyToDeduct -= qD; weightToDeduct -= wD;
+      }
+      newBatches = newBatches.filter(b => b.qty > 0 || b.weight > 0);
+  }
+  return newBatches;
+};
+
 export default function POSSystem() {
   const router = useRouter();
   const [inventory, setInventory] = useState<any[]>([]);
@@ -11,6 +41,7 @@ export default function POSSystem() {
   
   // CART STATE
   const [selectedDurian, setSelectedDurian] = useState<any>(null);
+  const [selectedBatch, setSelectedBatch] = useState<string>('auto'); // NEW: Batch Selector
   const [currentQty, setCurrentQty] = useState(1);
   const [currentWeight, setCurrentWeight] = useState('');
   const [cart, setCart] = useState<any[]>([]);
@@ -50,30 +81,47 @@ export default function POSSystem() {
   const addToCart = () => {
     if (!selectedDurian || !currentWeight) return showToast("❌ Enter a weight to add!", "error");
     
-    const currentCartWeight = cart.filter(item => item.type === selectedDurian.type).reduce((sum, item) => sum + item.weight, 0);
-    const totalRequestedWeight = currentCartWeight + parseFloat(currentWeight);
-    const totalRequestedQty = cart.filter(item => item.type === selectedDurian.type).reduce((sum, item) => sum + item.qty, 0) + currentQty;
+    // DETERMINE MAX QTY & WEIGHT BASED ON SELECTED BATCH
+    let maxQty = selectedDurian.total_durians;
+    let maxWeight = selectedDurian.total_weight_kg;
 
-    if (totalRequestedWeight > selectedDurian.total_weight_kg) {
-      return showToast(`❌ NOT ENOUGH STOCK! You requested ${totalRequestedWeight.toFixed(3)}kg, but only ${Number(selectedDurian.total_weight_kg).toFixed(3)}kg is left in inventory.`, "error");
+    if (selectedBatch !== 'auto') {
+        const bIdx = parseInt(selectedBatch);
+        maxQty = selectedDurian.stock_batches[bIdx].qty;
+        maxWeight = selectedDurian.stock_batches[bIdx].weight;
     }
-    if (totalRequestedQty > selectedDurian.total_durians) {
-      return showToast(`❌ NOT ENOUGH PIECES! You requested ${totalRequestedQty} pcs, but only ${selectedDurian.total_durians} pcs are left.`, "error");
+
+    const currentCartWeight = cart.filter(item => item.type === selectedDurian.type && item.batch === selectedBatch).reduce((sum, item) => sum + item.weight, 0);
+    const totalRequestedWeight = currentCartWeight + parseFloat(currentWeight);
+    
+    // 🐛 FIXED: Renamed this from currentCartQty to totalRequestedQty so it matches the if-statement!
+    const totalRequestedQty = cart.filter(item => item.type === selectedDurian.type && item.batch === selectedBatch).reduce((sum, item) => sum + item.qty, 0) + currentQty;
+
+    if (totalRequestedWeight > maxWeight) {
+      return showToast(`❌ NOT ENOUGH STOCK IN THIS BATCH! You requested ${totalRequestedWeight.toFixed(3)}kg, but only ${maxWeight.toFixed(3)}kg is available.`, "error");
+    }
+    if (totalRequestedQty > maxQty) {
+      return showToast(`❌ NOT ENOUGH PIECES! You requested ${totalRequestedQty} pcs, but only ${maxQty} pcs are available in this batch.`, "error");
     }
     
     const itemPrice = parseFloat(currentWeight) * selectedDurian.price_per_kg;
+    const batchLabel = selectedBatch === 'auto' ? 'Auto FIFO' : `Batch: ${selectedDurian.stock_batches[parseInt(selectedBatch)].date}`;
+
     const newItem = {
       type: selectedDurian.type,
       qty: currentQty,
       weight: parseFloat(currentWeight),
       price_per_kg: selectedDurian.price_per_kg,
-      total_price: itemPrice
+      total_price: itemPrice,
+      batch: selectedBatch,
+      batchLabel: batchLabel
     };
 
     setCart([...cart, newItem]);
     setSelectedDurian(null);
     setCurrentWeight('');
     setCurrentQty(1);
+    setSelectedBatch('auto');
     showToast(`✅ Added ${newItem.type} to cart!`);
   };
 
@@ -113,7 +161,21 @@ export default function POSSystem() {
           if (dbItem) {
             const newQty = dbItem.total_durians - item.qty;
             const newWeight = dbItem.total_weight_kg - item.weight;
-            await supabase.from('durian_inventory').update({ total_durians: newQty, total_weight_kg: newWeight }).eq('type', item.type);
+            
+            let updatedBatches = [...(dbItem.stock_batches || [])];
+            
+            if (item.batch === 'auto') {
+               updatedBatches = processBatchFIFO(updatedBatches, -item.qty, -item.weight);
+            } else {
+               const bIdx = parseInt(item.batch);
+               if(updatedBatches[bIdx]) {
+                  updatedBatches[bIdx].qty -= item.qty;
+                  updatedBatches[bIdx].weight -= item.weight;
+               }
+               updatedBatches = updatedBatches.filter(b => b.qty > 0 || b.weight > 0);
+            }
+
+            await supabase.from('durian_inventory').update({ total_durians: newQty, total_weight_kg: newWeight, stock_batches: updatedBatches }).eq('type', item.type);
           }
         }
 
@@ -171,7 +233,7 @@ export default function POSSystem() {
           <h2 className="text-2xl font-bold mb-6 text-gray-800 border-b border-gray-200 pb-4 shrink-0">1. Select Durians</h2>
           <div className="grid gap-3 overflow-y-auto max-h-[750px] pr-2">
             {inventory.map((item) => (
-              <button key={item.type} onClick={() => setSelectedDurian(item)} className={`p-5 border-2 rounded-2xl text-left transition-all duration-200 shadow-sm
+              <button key={item.type} onClick={() => { setSelectedDurian(item); setSelectedBatch('auto'); }} className={`p-5 border-2 rounded-2xl text-left transition-all duration-200 shadow-sm
                   ${selectedDurian?.type === item.type ? 'bg-green-50 border-green-600 ring-4 ring-green-100 text-black transform scale-[1.02]' : 'bg-white border-gray-200 hover:bg-gray-50 hover:border-green-300 text-black'}`}>
                 <div className="font-black text-xl text-gray-900">{item.type}</div>
                 <div className="text-md text-gray-600 mt-2">
@@ -200,6 +262,20 @@ export default function POSSystem() {
                         <span className="font-black text-green-900 text-xl">{selectedDurian.type}</span>
                         <span className="font-bold text-green-800 bg-green-200 px-3 py-1 rounded-lg">RM {selectedDurian.price_per_kg}/kg</span>
                     </div>
+
+                    {/* NEW: BATCH SELECTOR */}
+                    {selectedDurian.stock_batches && selectedDurian.stock_batches.length > 0 && (
+                      <div className="mb-4 bg-white p-3 rounded-xl border border-green-200">
+                         <label className="block text-xs font-bold text-green-800 uppercase tracking-wider mb-2">Select Stock Batch:</label>
+                         <select value={selectedBatch} onChange={e=>setSelectedBatch(e.target.value)} className="w-full border-2 border-green-300 p-2 rounded-lg text-black bg-white focus:ring-2 focus:ring-green-500 outline-none font-bold text-sm transition-all">
+                           <option value="auto">⚡ Auto (Deduct Oldest First / All)</option>
+                           {selectedDurian.stock_batches.map((b:any, idx:number) => (
+                             <option key={idx} value={idx}>Batch: {b.date} - Available: {b.qty}pcs / {Number(b.weight).toFixed(3)}kg</option>
+                           ))}
+                         </select>
+                      </div>
+                    )}
+
                     <div className="grid grid-cols-2 gap-4 mb-4">
                       <div>
                         <label className="block text-xs font-bold text-gray-600 uppercase tracking-wider mb-1">Qty (pcs)</label>
@@ -228,6 +304,8 @@ export default function POSSystem() {
                             <div>
                               <p className="font-black text-gray-900 text-lg">{item.type}</p>
                               <p className="text-sm text-gray-600 font-medium mt-0.5">{Number(item.weight).toFixed(3)}kg ({item.qty}pcs) @ RM{item.price_per_kg}/kg</p>
+                              {/* DISPLAY CHOSEN BATCH */}
+                              <p className="text-xs text-green-700 font-bold mt-1 bg-green-100 inline-block px-2 py-0.5 rounded">📦 {item.batchLabel}</p>
                             </div>
                             <div className="flex items-center gap-4">
                               <span className="font-black text-green-700 text-lg">RM {item.total_price.toFixed(2)}</span>
