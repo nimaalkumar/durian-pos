@@ -2,7 +2,7 @@
 import { useEffect } from 'react'
 import { supabase } from '../lib/supabase'
 import { useRouter, usePathname } from 'next/navigation'
-import Header from '../components/Header' // 👈 1. Import your new Header here!
+import Header from '../components/Header' 
 
 export default function ClientLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();

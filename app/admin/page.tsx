@@ -2,6 +2,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { supabase } from '../../lib/supabase';
 import { useRouter } from 'next/navigation';
+import Header from '@/components/Header'; // Assuming Header is used
 
 // --- SHARED STYLES (STRICT GRAY, YELLOW, GREEN) ---
 const inputClass = "w-full border-2 border-gray-300 p-3 rounded-xl text-black bg-gray-50 focus:bg-white focus:ring-2 focus:ring-green-400 outline-none transition-all font-semibold";
@@ -96,11 +97,10 @@ export default function AdminModule() {
   const [inventory, setInventory] = useState<any[]>([]);
   const [packInventory, setPackInventory] = useState<any[]>([]);
   const [suppliers, setSuppliers] = useState<string[]>([]);
-  const [expensesList, setExpensesList] = useState<any[]>([]); 
   const [activeModal, setActiveModal] = useState<string | null>(null);
-  const [viewBatchDurian, setViewBatchDurian] = useState<any>(null); // NEW: State for Batch View Modal
+  const [viewBatchDurian, setViewBatchDurian] = useState<any>(null); 
 
-  // Form States
+  // Form States for Stock In
   const [stockForms, setStockForms] = useState([{ id: 1, type: '', isNew: false, newType: '', qty: '', weight: '', supplierPriceKg: '', newSellingPrice: '', isNewSupplier: false, supplierName: '', receiptFile: null as File | null }]);
   
   // Spoilage State
@@ -111,15 +111,25 @@ export default function AdminModule() {
   const [spoilBatch, setSpoilBatch] = useState('auto');
   const [refundAmount, setRefundAmount] = useState('');
   
+  // Pack Stock In State
   const [packItem, setPackItem] = useState('');
   const [packQty, setPackQty] = useState('');
   const [packCost, setPackCost] = useState('');
   
+  // Operating Expenses State
   const [opCategory, setOpCategory] = useState('Staff Salary');
   const [opAmount, setOpAmount] = useState('');
   const [staffName, setStaffName] = useState('');
   const [staffRate, setStaffRate] = useState('per hour');
   const [expenseReceipt, setExpenseReceipt] = useState<File | null>(null);
+
+  // Mix Tupperware Assembly State
+  const [mixSourceDurian, setMixSourceDurian] = useState('');
+  const [mixSourcePcs, setMixSourcePcs] = useState('');
+  const [mixSourcePack, setMixSourcePack] = useState('');
+  const [mixNumTup, setMixNumTup] = useState('');
+  const [mixWeight, setMixWeight] = useState('');
+  const [mixTotalRM, setMixTotalRM] = useState('');
 
   const [toast, setToast] = useState<{show: boolean, msg: string, type: 'error'|'success'}>({show: false, msg: '', type: 'success'});
   const showToast = (msg: string, type: 'error'|'success' = 'success') => {
@@ -142,7 +152,6 @@ export default function AdminModule() {
 
     const { data: expenses } = await supabase.from('expenses').select('*').order('created_at', { ascending: false });
     if (expenses) {
-       setExpensesList(expenses);
        const uniqueSuppliers = Array.from(new Set(expenses.filter(e => e.supplier_name).map(e => e.supplier_name)));
        setSuppliers(uniqueSuppliers as string[]);
     }
@@ -177,10 +186,13 @@ export default function AdminModule() {
   const updateStockForm = (id: number, field: string, value: any) => setStockForms(prev => prev.map(form => form.id === id ? { ...form, [field]: value } : form));
 
   const submitMultiStockIn = async () => {
+    const isFruit = activeModal === 'stockInFruit';
+    const expenseCategory = isFruit ? 'Other Fruit Restock' : 'Durian Restock';
+
     for (const form of stockForms) {
       const actualType = form.isNew ? form.newType.trim() : form.type;
       if (!actualType || !form.qty || !form.weight || !form.newSellingPrice || !form.supplierPriceKg) {
-        return showToast("Please fill all required fields for all durians!", "error");
+        return showToast("Please fill all required fields!", "error");
       }
 
       if (window.confirm(`Confirm stock in for ${form.qty} pcs of ${actualType}?`)) {
@@ -204,17 +216,77 @@ export default function AdminModule() {
 
         const totalCost = parseFloat(form.weight) * parseFloat(form.supplierPriceKg);
         await supabase.from('expenses').insert({ 
-          category: 'Durian Restock', durian_type: actualType, quantity_bought: parseInt(form.qty), 
+          category: expenseCategory, durian_type: actualType, quantity_bought: parseInt(form.qty), 
           weight_bought_kg: parseFloat(form.weight), total_cost_rm: totalCost, 
           description: `Bought @ RM${form.supplierPriceKg}/kg`,
           user_name: adminName, supplier_name: form.supplierName, receipt_url: receiptUrl
         });
       }
     }
-    showToast("✅ Stock updated and logged successfully!");
+    showToast(`✅ ${isFruit ? 'Fruit' : 'Durian'} Stock updated and logged successfully!`);
     setStockForms([{ id: Date.now(), type: '', isNew: false, newType: '', qty: '', weight: '', supplierPriceKg: '', newSellingPrice: '', isNewSupplier: false, supplierName: '', receiptFile: null }]);
     fetchData();
     setActiveModal(null);
+  };
+
+  // Mix Tupperware Assembly Function
+  const submitMixTupperware = async () => {
+    if (!mixSourceDurian || !mixSourcePack || !mixNumTup || !mixWeight || !mixTotalRM) {
+      return showToast("Please fill all required fields", "error");
+    }
+
+    const durianData = inventory.find(i => i.type === mixSourceDurian);
+    const packData = packInventory.find(p => p.item_name === mixSourcePack);
+
+    if (!durianData || !packData) return;
+    if (durianData.total_weight_kg < parseFloat(mixWeight)) return showToast("Not enough inventory weight!", "error");
+    if (packData.quantity < parseInt(mixNumTup)) return showToast("Not enough packaging in inventory!", "error");
+
+    if (window.confirm(`Confirm packaging ${mixNumTup}x ${mixSourcePack} using ${mixWeight}kg of ${mixSourceDurian}?`)) {
+      
+      // 1. Deduct Source Item
+      const pcsToDeduct = parseInt(mixSourcePcs) || 0;
+      const updatedSourceBatches = processBatchFIFO(durianData.stock_batches || [], -pcsToDeduct, -parseFloat(mixWeight));
+      await supabase.from('durian_inventory').update({
+        total_durians: Math.max(0, durianData.total_durians - pcsToDeduct),
+        total_weight_kg: Math.max(0, durianData.total_weight_kg - parseFloat(mixWeight)),
+        stock_batches: updatedSourceBatches
+      }).eq('type', mixSourceDurian);
+
+      // 2. Deduct Tupperware
+      await supabase.from('packaging_inventory').update({
+        quantity: Math.max(0, packData.quantity - parseInt(mixNumTup))
+      }).eq('item_name', mixSourcePack);
+
+      // 3. Add New Mixed Item to Inventory
+      const mixName = `${mixSourceDurian} in ${mixSourcePack}`;
+      const existingMix = inventory.find(i => i.type === mixName);
+      const pricePerKg = parseFloat(mixTotalRM) / parseFloat(mixWeight); // POS handles pricing by weight
+      
+      if (existingMix) {
+        const updatedMixBatches = processBatchFIFO(existingMix.stock_batches || [], parseInt(mixNumTup), parseFloat(mixWeight));
+        await supabase.from('durian_inventory').update({
+          total_durians: existingMix.total_durians + parseInt(mixNumTup),
+          total_weight_kg: existingMix.total_weight_kg + parseFloat(mixWeight),
+          price_per_kg: pricePerKg,
+          stock_batches: updatedMixBatches
+        }).eq('type', mixName);
+      } else {
+        const newBatches = processBatchFIFO([], parseInt(mixNumTup), parseFloat(mixWeight));
+        await supabase.from('durian_inventory').insert({
+          type: mixName,
+          total_durians: parseInt(mixNumTup),
+          total_weight_kg: parseFloat(mixWeight),
+          price_per_kg: pricePerKg,
+          stock_batches: newBatches
+        });
+      }
+
+      showToast("✅ Mix Durians Assembly Completed!");
+      setMixSourceDurian(''); setMixSourcePcs(''); setMixSourcePack(''); setMixNumTup(''); setMixWeight(''); setMixTotalRM('');
+      setActiveModal(null);
+      fetchData();
+    }
   };
 
   const handleSpoilage = async () => {
@@ -227,19 +299,17 @@ export default function AdminModule() {
       let updatedBatches = [...(target.stock_batches || [])];
 
       if (spoilAction === 'spoilage' || spoilAction === 'return_supplier') {
-        
-        // DEDUCT FROM BATCHES
         if (spoilBatch === 'auto') {
           updatedBatches = processBatchFIFO(updatedBatches, -parseInt(spoilQty), -parseFloat(spoilWeight));
         } else {
           const bIdx = parseInt(spoilBatch);
           const selectedB = updatedBatches[bIdx];
           if (parseInt(spoilQty) > selectedB.qty || parseFloat(spoilWeight) > selectedB.weight) {
-             return showToast(`❌ Cannot deduct more than what's in this batch! (Max: ${selectedB.qty}pcs / ${selectedB.weight}kg)`, "error");
+             return showToast(`❌ Cannot deduct more than what's in this batch!`, "error");
           }
           selectedB.qty -= parseInt(spoilQty);
           selectedB.weight -= parseFloat(spoilWeight);
-          updatedBatches = updatedBatches.filter(b => b.qty > 0 || b.weight > 0); // Remove empty batches
+          updatedBatches = updatedBatches.filter(b => b.qty > 0 || b.weight > 0); 
         }
 
         const lostValue = parseFloat(spoilWeight) * target.price_per_kg;
@@ -251,12 +321,9 @@ export default function AdminModule() {
         }
       } 
       else if (spoilAction === 'customer_return') {
-        // ADD BACK TO BATCHES
         updatedBatches = processBatchFIFO(updatedBatches, parseInt(spoilQty), parseFloat(spoilWeight));
-        
         await supabase.from('spoilage_returns').insert({ durian_type: spoilType, action_type: 'customer_return', quantity: parseInt(spoilQty), weight_kg: parseFloat(spoilWeight), lost_value: 0, user_name: adminName });
         await supabase.from('durian_inventory').update({ total_durians: target.total_durians + parseInt(spoilQty), total_weight_kg: target.total_weight_kg + parseFloat(spoilWeight), stock_batches: updatedBatches }).eq('type', spoilType);
-        
         if (refundAmount) {
           await supabase.from('expenses').insert({ category: 'Customer Refund', durian_type: spoilType, total_cost_rm: Math.abs(parseFloat(refundAmount)), description: `Customer Return: ${spoilWeight}kg of ${spoilType}`, user_name: adminName });
         }
@@ -298,7 +365,6 @@ export default function AdminModule() {
       setActiveModal(null);
     }
   };
-  
 
   const deleteDurian = async (type: string) => {
     if (window.confirm(`⚠️ WARNING: Are you sure you want to completely delete ${type} from inventory?`)) {
@@ -322,8 +388,6 @@ export default function AdminModule() {
   return (
     <div className="pb-10 text-black bg-gray-50 min-h-screen relative">
       
-     
-
       {toast.show && (
         <div className={`fixed top-10 left-1/2 transform -translate-x-1/2 z-[100] px-8 py-4 rounded-2xl shadow-2xl font-extrabold text-lg transition-all animate-bounce ${toast.type === 'error' ? 'bg-yellow-400 text-black' : 'bg-green-600 text-white'}`}>
           {toast.msg}
@@ -338,17 +402,25 @@ export default function AdminModule() {
       </div>
       
       {/* DASHBOARD GRID */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 px-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6 px-4">
         <button onClick={() => router.push('/today_sales')} className="bg-green-500 text-white p-8 rounded-3xl shadow-lg hover:bg-green-600 hover:scale-105 transition-all text-left flex flex-col justify-between h-48 group">
           <span className="text-4xl">📊</span><div><h3 className="text-xl font-black group-hover:underline">Today's Sales</h3><p className="font-bold text-green-900 mt-1">Live tracking & Edits</p></div>
         </button>
         
-        <button onClick={() => setActiveModal('stockIn')} className="bg-green-600 text-white p-8 rounded-3xl shadow-lg hover:bg-green-700 hover:scale-105 transition-all text-left flex flex-col justify-between h-48 group">
+        <button onClick={() => setActiveModal('stockInDurian')} className="bg-green-600 text-white p-8 rounded-3xl shadow-lg hover:bg-green-700 hover:scale-105 transition-all text-left flex flex-col justify-between h-48 group">
           <span className="text-4xl">📥</span><div><h3 className="text-xl font-black group-hover:underline">Durian Stock In</h3><p className="font-medium text-green-100 mt-1">Add batches & supplier</p></div>
+        </button>
+
+        <button onClick={() => setActiveModal('stockInFruit')} className="bg-red-500 text-white p-8 rounded-3xl shadow-lg hover:bg-red-600 hover:scale-105 transition-all text-left flex flex-col justify-between h-48 group">
+          <span className="text-4xl">🍎</span><div><h3 className="text-xl font-black group-hover:underline">Other Fruits Stock In</h3><p className="font-medium text-red-100 mt-1">Add fruits & supplier</p></div>
         </button>
 
         <button onClick={() => setActiveModal('packStock')} className="bg-gray-200 text-gray-800 p-8 rounded-3xl shadow-lg border-2 border-gray-300 hover:bg-gray-300 hover:scale-105 transition-all text-left flex flex-col justify-between h-48 group">
           <span className="text-4xl">🛍️</span><div><h3 className="text-xl font-black group-hover:underline">Packaging Stock In</h3><p className="font-bold text-gray-600 mt-1">Add bags & boxes</p></div>
+        </button>
+
+        <button onClick={() => setActiveModal('mixTupperware')} className="bg-purple-600 text-white p-8 rounded-3xl shadow-lg hover:bg-purple-700 hover:scale-105 transition-all text-left flex flex-col justify-between h-48 group">
+          <span className="text-4xl">🍱</span><div><h3 className="text-xl font-black group-hover:underline">Mix Durians Assembly</h3><p className="font-medium text-purple-200 mt-1">Pack into tupperware</p></div>
         </button>
         
         <button onClick={() => setActiveModal('spoilage')} className="bg-yellow-500 text-black p-8 rounded-3xl shadow-lg hover:bg-yellow-600 hover:scale-105 transition-all text-left flex flex-col justify-between h-48 group">
@@ -359,12 +431,12 @@ export default function AdminModule() {
           <span className="text-4xl">💸</span><div><h3 className="text-xl font-black group-hover:underline">Log Expenses</h3><p className="font-medium text-gray-300 mt-1">Rent, Staff & Bills</p></div>
         </button>
         
-        <button onClick={() => setActiveModal('viewReceipts')} className="bg-gray-600 text-white p-8 rounded-3xl shadow-lg hover:bg-gray-700 hover:scale-105 transition-all text-left flex flex-col justify-between h-48 group">
-          <span className="text-4xl">📄</span><div><h3 className="text-xl font-black group-hover:underline">View Documents</h3><p className="font-bold text-gray-300 mt-1">Check logs & docs</p></div>
-        </button>
-        
         <button onClick={() => setActiveModal('manageDurian')} className="bg-white border-4 border-green-600 text-green-900 p-8 rounded-3xl shadow-lg hover:bg-green-50 hover:scale-105 transition-all text-left flex flex-col justify-between h-48 group">
           <span className="text-4xl">✏️</span><div><h3 className="text-xl font-black group-hover:underline">Edit Durians</h3><p className="font-bold text-green-700 mt-1">Modify/Delete</p></div>
+        </button>
+
+        <button onClick={() => setActiveModal('manageFruits')} className="bg-white border-4 border-red-500 text-red-900 p-8 rounded-3xl shadow-lg hover:bg-red-50 hover:scale-105 transition-all text-left flex flex-col justify-between h-48 group">
+          <span className="text-4xl">🥭</span><div><h3 className="text-xl font-black group-hover:underline">Edit Other Fruits</h3><p className="font-bold text-red-700 mt-1">Modify/Delete</p></div>
         </button>
         
         <button onClick={() => setActiveModal('managePack')} className="bg-white border-4 border-yellow-500 text-yellow-900 p-8 rounded-3xl shadow-lg hover:bg-yellow-50 hover:scale-105 transition-all text-left flex flex-col justify-between h-48 group">
@@ -374,60 +446,18 @@ export default function AdminModule() {
 
       {/* --- MODALS --- */}
 
-      {/* DOCUMENT VIEWER MODAL */}
-      {activeModal === 'viewReceipts' && (
-        <Modal title="📄 Document & Expense Viewer" onClose={() => setActiveModal(null)}>
-          <div className="overflow-x-auto w-full">
-            <table className="w-full min-w-[600px] text-left border-collapse">
-              <thead>
-                <tr className="border-b-4 border-gray-300">
-                  <th className="p-4">Date</th>
-                  <th className="p-4">Category</th>
-                  <th className="p-4">Details & Supplier</th>
-                  <th className="p-4 text-right">Amount</th>
-                  <th className="p-4 text-center">Document</th>
-                </tr>
-              </thead>
-              <tbody>
-                {expensesList.map(exp => (
-                  <tr key={exp.id} className="border-b border-gray-200 hover:bg-yellow-50 bg-white">
-                    <td className="p-4 text-sm font-bold text-gray-600">{new Date(exp.created_at).toLocaleDateString()}</td>
-                    <td className="p-4 font-extrabold text-gray-800">{exp.category}</td>
-                    <td className="p-4 text-sm text-gray-700">
-                      {exp.description} 
-                      {exp.supplier_name && <span className="text-green-700 font-bold block mt-1">Supplier: {exp.supplier_name}</span>}
-                    </td>
-                    <td className="p-4 font-black text-gray-800 text-right">RM {Math.abs(exp.total_cost_rm).toFixed(2)}</td>
-                    <td className="p-4 text-center">
-                      {exp.receipt_url ? (
-                       <a href={exp.receipt_url} target="_blank" rel="noopener noreferrer" className="...">
-                        📄 View Document
-                        </a>
-                      ) : (
-                        <span className="text-gray-400 text-xs font-bold">No Document</span>
-                      )}
-                    </td>
-                  </tr>
-                ))}
-                {expensesList.length === 0 && <tr><td colSpan={5} className="p-6 text-center text-gray-500 font-bold">No expenses or documents found.</td></tr>}
-              </tbody>
-            </table>
-          </div>
-        </Modal>
-      )}
-
-      {/* STOCK IN WITH SUPPLIER DROPDOWN */}
-      {activeModal === 'stockIn' && (
-        <Modal title="📥 Durian Stock In" onClose={() => setActiveModal(null)}>
-          <button onClick={handleAddStockRow} className="mb-4 bg-gray-200 text-gray-800 font-bold px-5 py-2.5 rounded-xl hover:bg-yellow-400 shadow-sm transition-colors w-full md:w-auto">+ Add Another Durian</button>
+      {/* STOCK IN (Handles both Durian and Other Fruits) */}
+      {(activeModal === 'stockInDurian' || activeModal === 'stockInFruit') && (
+        <Modal title={activeModal === 'stockInFruit' ? "📥 Other Fruits Stock In" : "📥 Durian Stock In"} onClose={() => setActiveModal(null)}>
+          <button onClick={handleAddStockRow} className="mb-4 bg-gray-200 text-gray-800 font-bold px-5 py-2.5 rounded-xl hover:bg-yellow-400 shadow-sm transition-colors w-full md:w-auto">+ Add Another Item</button>
           <div className="space-y-6">
             {stockForms.map((form, index) => (
               <div key={form.id} className="p-6 bg-gray-50 border-2 border-gray-200 rounded-2xl relative shadow-sm">
                 {stockForms.length > 1 && ( <button onClick={() => handleRemoveStockRow(form.id)} className="absolute top-4 right-4 text-red-500 font-bold">✕ Remove</button> )}
-                <h3 className="font-extrabold mb-4 text-green-900 text-lg border-b-2 border-gray-200 pb-2">Durian #{index + 1}</h3>
+                <h3 className="font-extrabold mb-4 text-green-900 text-lg border-b-2 border-gray-200 pb-2">Item #{index + 1}</h3>
                 <div className="grid md:grid-cols-5 gap-4">
                   <div className="md:col-span-1">
-                    <label className="block text-xs font-bold text-gray-500 uppercase">Durian Type</label>
+                    <label className="block text-xs font-bold text-gray-500 uppercase">Item Type</label>
                     {!form.isNew ? (
                       <select value={form.type} onChange={(e) => { if (e.target.value === 'ADD_NEW') updateStockForm(form.id, 'isNew', true); else updateStockForm(form.id, 'type', e.target.value); }} className={inputClass}>
                         <option value="">Select Type...</option>{inventory.map(i => <option key={i.type} value={i.type}>{i.type}</option>)}<option value="ADD_NEW" className="font-bold text-green-600">+ New Type</option>
@@ -462,6 +492,56 @@ export default function AdminModule() {
               </div>
             ))}
             <button onClick={submitMultiStockIn} className={modalBtnClass}>Submit All Stock In</button>
+          </div>
+        </Modal>
+      )}
+
+      {/* MIX DURIANS TUPPERWARE ASSEMBLY */}
+      {activeModal === 'mixTupperware' && (
+        <Modal title="🍱 Mix Durians in Tupperware Assembly" onClose={() => setActiveModal(null)}>
+          <div className="space-y-4">
+            <div className="bg-purple-50 border border-purple-200 p-4 rounded-xl mb-4">
+              <p className="text-purple-800 font-bold text-sm">Create a new packaged item by combining existing durian stock and tupperware packaging.</p>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Source Durian (To Deduct)</label>
+                <select value={mixSourceDurian} onChange={e=>setMixSourceDurian(e.target.value)} className={inputClass}>
+                  <option value="">Select Existing Durian...</option>
+                  {inventory.map(i => <option key={i.type} value={i.type}>{i.type}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Durian Pieces Used (Optional)</label>
+                <input type="number" value={mixSourcePcs} onChange={e=>setMixSourcePcs(e.target.value)} className={inputClass} placeholder="Pcs to deduct" />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Tupperware Used</label>
+                <select value={mixSourcePack} onChange={e=>setMixSourcePack(e.target.value)} className={inputClass}>
+                  <option value="">Select Packaging...</option>
+                  {packInventory.map(p => <option key={p.id} value={p.item_name}>{p.item_name} ({p.quantity} left)</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Number of Tupperware</label>
+                <input type="number" value={mixNumTup} onChange={e=>setMixNumTup(e.target.value)} className={inputClass} placeholder="Qty created" />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4 border-t-2 border-gray-200 pt-4 mt-2">
+              <div>
+                <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Total Weight inside Tupperware (kg)</label>
+                <input type="number" step="0.001" value={mixWeight} onChange={e=>setMixWeight(e.target.value)} className={inputClass} placeholder="e.g., 2.500" />
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Total Value/Selling Price (RM)</label>
+                <input type="number" step="0.1" value={mixTotalRM} onChange={e=>setMixTotalRM(e.target.value)} className={inputClass} placeholder="Total RM" />
+              </div>
+            </div>
+            <button onClick={submitMixTupperware} className={modalBtnClass}>Confirm Assembly</button>
           </div>
         </Modal>
       )}
@@ -550,9 +630,9 @@ export default function AdminModule() {
         </Modal>
       )}
 
-      {/* MANAGE DURIANS TABLE */}
-      {activeModal === 'manageDurian' && (
-        <Modal title="✏️ Edit/Delete Durians" onClose={() => setActiveModal(null)}>
+      {/* MANAGE DURIANS AND FRUITS TABLE */}
+      {(activeModal === 'manageDurian' || activeModal === 'manageFruits') && (
+        <Modal title={activeModal === 'manageFruits' ? "🥭 Edit/Delete Other Fruits" : "✏️ Edit/Delete Durians"} onClose={() => setActiveModal(null)}>
           <div className="overflow-x-auto w-full">
             <table className="w-full text-left min-w-[600px]">
               <thead><tr className="border-b-4 border-green-600"><th className="p-4">Type</th><th className="p-4 text-center">Qty</th><th className="p-4 text-center">Weight</th><th className="p-4 text-center">Price</th><th className="p-4 text-center">Actions</th></tr></thead>

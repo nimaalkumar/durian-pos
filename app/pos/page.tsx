@@ -39,9 +39,13 @@ export default function POSSystem() {
   const [packInventory, setPackInventory] = useState<any[]>([]);
   const [cashierName, setCashierName] = useState('Unknown Cashier');
   
+  // FILTER & SEARCH STATE
+  const [searchQuery, setSearchQuery] = useState('');
+  const [filterType, setFilterType] = useState('all'); // 'all', 'fresh', 'mix'
+
   // CART STATE
-  const [selectedDurian, setSelectedDurian] = useState<any>(null);
-  const [selectedBatch, setSelectedBatch] = useState<string>('auto'); // NEW: Batch Selector
+  const [selectedProduct, setSelectedProduct] = useState<any>(null);
+  const [selectedBatch, setSelectedBatch] = useState<string>('auto'); 
   const [currentQty, setCurrentQty] = useState<number | string>('');
   const [currentWeight, setCurrentWeight] = useState('');
   const [cart, setCart] = useState<any[]>([]);
@@ -70,60 +74,68 @@ export default function POSSystem() {
         if (profile?.account_name) setCashierName(profile.account_name);
       }
 
-      const { data: durians } = await supabase.from('durian_inventory').select('*');
-      if (durians) setInventory(durians);
+      const { data: items } = await supabase.from('durian_inventory').select('*').order('type');
+      if (items) setInventory(items);
       const { data: packaging } = await supabase.from('packaging_inventory').select('*');
       if (packaging) setPackInventory(packaging);
     }
     fetchData();
   }, []);
 
+  // Compute Filtered Inventory
+  const filteredInventory = inventory.filter(item => {
+    const matchesSearch = item.type.toLowerCase().includes(searchQuery.toLowerCase());
+    const isMix = item.type.toLowerCase().includes(' in '); // e.g. "Musang King in Tupperware"
+
+    if (filterType === 'fresh') return matchesSearch && !isMix;
+    if (filterType === 'mix') return matchesSearch && isMix;
+    return matchesSearch;
+  });
+
   const addToCart = () => {
-    if (!selectedDurian || !currentWeight) return showToast("❌ Enter a weight to add!", "error");
-    if (!currentQty || currentQty === '') return showToast("❌ Enter a quantity (pcs)!", "error");
+    if (!selectedProduct || !currentWeight) return showToast("❌ Enter a weight to add!", "error");
+    if (!currentQty || currentQty === '') return showToast("❌ Enter a quantity (pcs/packs)!", "error");
     
-    // Safely parse the quantity
     const finalQty = typeof currentQty === 'number' ? currentQty : parseInt(currentQty as string);
 
-    // DETERMINE MAX QTY & WEIGHT BASED ON SELECTED BATCH
-    let maxQty = selectedDurian.total_durians;
-    let maxWeight = selectedDurian.total_weight_kg;
+    let maxQty = selectedProduct.total_durians;
+    let maxWeight = selectedProduct.total_weight_kg;
 
     if (selectedBatch !== 'auto') {
         const bIdx = parseInt(selectedBatch);
-        maxQty = selectedDurian.stock_batches[bIdx].qty;
-        maxWeight = selectedDurian.stock_batches[bIdx].weight;
+        maxQty = selectedProduct.stock_batches[bIdx].qty;
+        maxWeight = selectedProduct.stock_batches[bIdx].weight;
     }
 
-    const currentCartWeight = cart.filter(item => item.type === selectedDurian.type && item.batch === selectedBatch).reduce((sum, item) => sum + item.weight, 0);
+    const currentCartWeight = cart.filter(item => item.type === selectedProduct.type && item.batch === selectedBatch).reduce((sum, item) => sum + item.weight, 0);
     const totalRequestedWeight = currentCartWeight + parseFloat(currentWeight);
     
-    const totalRequestedQty = cart.filter(item => item.type === selectedDurian.type && item.batch === selectedBatch).reduce((sum, item) => sum + item.qty, 0) + finalQty;
+    const totalRequestedQty = cart.filter(item => item.type === selectedProduct.type && item.batch === selectedBatch).reduce((sum, item) => sum + item.qty, 0) + finalQty;
 
     if (totalRequestedWeight > maxWeight) {
-      return showToast(`❌ NOT ENOUGH STOCK IN THIS BATCH! You requested ${totalRequestedWeight.toFixed(3)}kg, but only ${maxWeight.toFixed(3)}kg is available.`, "error");
+      return showToast(`❌ NOT ENOUGH STOCK! You requested ${totalRequestedWeight.toFixed(3)}kg, but only ${maxWeight.toFixed(3)}kg is available.`, "error");
     }
     if (totalRequestedQty > maxQty) {
-      return showToast(`❌ NOT ENOUGH PIECES! You requested ${totalRequestedQty} pcs, but only ${maxQty} pcs are available in this batch.`, "error");
+      return showToast(`❌ NOT ENOUGH PIECES! You requested ${totalRequestedQty} units, but only ${maxQty} units are available.`, "error");
     }
     
-    const itemPrice = parseFloat(currentWeight) * selectedDurian.price_per_kg;
-    const batchLabel = selectedBatch === 'auto' ? 'Auto FIFO' : `Batch: ${selectedDurian.stock_batches[parseInt(selectedBatch)].date}`;
+    const itemPrice = parseFloat(currentWeight) * selectedProduct.price_per_kg;
+    const batchLabel = selectedBatch === 'auto' ? 'Auto FIFO' : `Batch: ${selectedProduct.stock_batches[parseInt(selectedBatch)].date}`;
 
     const newItem = {
-      type: selectedDurian.type,
+      type: selectedProduct.type,
       qty: finalQty,
       weight: parseFloat(currentWeight),
-      price_per_kg: selectedDurian.price_per_kg,
+      price_per_kg: selectedProduct.price_per_kg,
       total_price: itemPrice,
       batch: selectedBatch,
       batchLabel: batchLabel
     };
 
     setCart([...cart, newItem]);
-    setSelectedDurian(null);
+    setSelectedProduct(null);
     setCurrentWeight('');
-    setCurrentQty(''); // Reset to empty instead of 1
+    setCurrentQty(''); 
     setSelectedBatch('auto');
     showToast(`✅ Added ${newItem.type} to cart!`);
   };
@@ -135,9 +147,9 @@ export default function POSSystem() {
   };
 
   const basePrice = cart.reduce((sum, item) => sum + item.total_price, 0);
-  const finalDurianPrice = customPrice !== '' ? parseFloat(customPrice) : basePrice;
+  const finalPrice = customPrice !== '' ? parseFloat(customPrice) : basePrice;
   const finalDeliveryFee = orderType === 'delivery' ? parseFloat(deliveryFee || '0') : 0;
-  const grandTotal = finalDurianPrice + finalDeliveryFee;
+  const grandTotal = finalPrice + finalDeliveryFee;
 
   const handleCheckout = async () => {
     if (cart.length === 0) return showToast("❌ Cart is empty!", "error");
@@ -146,11 +158,11 @@ export default function POSSystem() {
     if (confirm(`Are you sure you want to process this payment for RM ${grandTotal.toFixed(2)}?`)) {
         const totalQty = cart.reduce((sum, item) => sum + item.qty, 0);
         const totalWeight = cart.reduce((sum, item) => sum + item.weight, 0);
-        const durianTypeLabel = cart.length === 1 ? cart[0].type : `Mixed Order (${cart.length} items)`;
+        const productTypeLabel = cart.length === 1 ? cart[0].type : `Mixed Order (${cart.length} items)`;
         const orderNum = `ORD-${Date.now().toString().slice(-6)}`;
 
         const { error } = await supabase.from('sales').insert({
-          durian_type: durianTypeLabel, quantity: totalQty, weight_kg: totalWeight, 
+          durian_type: productTypeLabel, quantity: totalQty, weight_kg: totalWeight, 
           total_price: grandTotal, payment_method: paymentMethod, order_type: orderType, 
           delivery_fee: finalDeliveryFee, cart_items: cart,
           table_number: orderType === 'eat_here' ? tableNumber.trim() : null,
@@ -203,15 +215,13 @@ export default function POSSystem() {
   return (
     <div className="pb-10 bg-gray-100 text-black min-h-screen relative">
       
-      
-
       {toast.show && (
         <div className={`fixed top-10 left-1/2 transform -translate-x-1/2 z-[100] px-8 py-4 rounded-2xl shadow-2xl text-white font-extrabold text-lg transition-all animate-bounce ${toast.type === 'error' ? 'bg-yellow-600 text-black' : 'bg-green-600'}`}>
           {toast.msg}
         </div>
       )}
 
-      {/* DASHBOARD HEADER WITH TODAY'S SALES BUTTON */}
+      {/* DASHBOARD HEADER */}
       <div className="flex justify-between items-center bg-white p-4 m-4 rounded-2xl shadow-sm border border-gray-200">
         <h1 className="text-2xl font-black text-green-900">POS Cashier</h1>
         <div className="flex gap-4 items-center">
@@ -222,18 +232,33 @@ export default function POSSystem() {
 
       <div className="grid grid-cols-1 md:grid-cols-12 gap-6 p-4">
         
-        {/* LEFT SIDE: SELECT DURIAN */}
+        {/* LEFT SIDE: SELECT PRODUCT */}
         <div className="md:col-span-6 bg-white p-6 shadow-md rounded-3xl border border-gray-200 flex flex-col">
-          <h2 className="text-2xl font-bold mb-6 text-gray-800 border-b border-gray-200 pb-4 shrink-0">1. Select Durians</h2>
-          <div className="grid gap-3 overflow-y-auto max-h-[750px] pr-2">
-            {inventory.map((item) => (
-              <button key={item.type} onClick={() => { setSelectedDurian(item); setSelectedBatch('auto'); }} className={`p-5 border-2 rounded-2xl text-left transition-all duration-200 shadow-sm
-                  ${selectedDurian?.type === item.type ? 'bg-green-50 border-green-600 ring-4 ring-green-100 text-black transform scale-[1.02]' : 'bg-white border-gray-200 hover:bg-gray-50 hover:border-green-300 text-black'}`}>
+          <div className="flex justify-between items-center border-b border-gray-200 pb-4 mb-4 shrink-0">
+             <h2 className="text-2xl font-bold text-gray-800">1. Select Products</h2>
+          </div>
+          
+          {/* SEARCH AND FILTER BAR */}
+          <div className="mb-4 space-y-3 shrink-0">
+             <input type="text" placeholder="🔍 Search durians, fruits, or mix packs..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="w-full border-2 border-gray-300 p-3 rounded-xl text-black bg-gray-50 focus:bg-white focus:ring-2 focus:ring-green-400 outline-none transition-all font-semibold" />
+             <div className="flex gap-2">
+                <button onClick={() => setFilterType('all')} className={`flex-1 py-2 rounded-lg font-bold text-sm transition-all ${filterType === 'all' ? 'bg-green-600 text-white shadow-md' : 'bg-gray-200 text-gray-600 hover:bg-gray-300'}`}>All</button>
+                <button onClick={() => setFilterType('fresh')} className={`flex-1 py-2 rounded-lg font-bold text-sm transition-all ${filterType === 'fresh' ? 'bg-green-600 text-white shadow-md' : 'bg-gray-200 text-gray-600 hover:bg-gray-300'}`}>Fresh Fruits</button>
+                <button onClick={() => setFilterType('mix')} className={`flex-1 py-2 rounded-lg font-bold text-sm transition-all ${filterType === 'mix' ? 'bg-green-600 text-white shadow-md' : 'bg-gray-200 text-gray-600 hover:bg-gray-300'}`}>Mix Packs</button>
+             </div>
+          </div>
+
+          {/* PRODUCT LIST */}
+          <div className="grid gap-3 overflow-y-auto max-h-[650px] pr-2">
+            {filteredInventory.length === 0 && <div className="text-center py-10 text-gray-400 font-bold italic">No products found.</div>}
+            {filteredInventory.map((item) => (
+              <button key={item.type} onClick={() => { setSelectedProduct(item); setSelectedBatch('auto'); }} className={`p-5 border-2 rounded-2xl text-left transition-all duration-200 shadow-sm
+                  ${selectedProduct?.type === item.type ? 'bg-green-50 border-green-600 ring-4 ring-green-100 text-black transform scale-[1.02]' : 'bg-white border-gray-200 hover:bg-gray-50 hover:border-green-300 text-black'}`}>
                 <div className="font-black text-xl text-gray-900">{item.type}</div>
                 <div className="text-md text-gray-600 mt-2">
                   <span className="font-extrabold text-green-700 bg-green-100 px-2 py-1 rounded-md">RM {item.price_per_kg}/kg</span> 
                   <span className="mx-2">|</span> 
-                  Stock: <span className="font-bold">{Number(item.total_weight_kg).toFixed(3)}kg</span> ({item.total_durians} pcs)
+                  Stock: <span className="font-bold">{Number(item.total_weight_kg).toFixed(3)}kg</span> ({item.total_durians} pcs/packs)
                 </div>
               </button>
             ))}
@@ -247,23 +272,23 @@ export default function POSSystem() {
           <div className="flex-1 overflow-y-auto pr-2">
             
             {/* ADD TO CART WIDGET */}
-            <div className={`p-5 rounded-2xl mb-6 border-2 transition-all shadow-sm ${selectedDurian ? 'border-green-400 bg-green-50' : 'border-dashed border-gray-300 bg-gray-50'}`}>
-              {!selectedDurian ? (
-                  <div className="text-center text-gray-500 font-bold py-4">👈 Select a durian from the left to add</div>
+            <div className={`p-5 rounded-2xl mb-6 border-2 transition-all shadow-sm ${selectedProduct ? 'border-green-400 bg-green-50' : 'border-dashed border-gray-300 bg-gray-50'}`}>
+              {!selectedProduct ? (
+                  <div className="text-center text-gray-500 font-bold py-4">👈 Select a product from the left to add</div>
               ) : (
                   <>
                     <div className="flex justify-between items-center mb-4">
-                        <span className="font-black text-green-900 text-xl">{selectedDurian.type}</span>
-                        <span className="font-bold text-green-800 bg-green-200 px-3 py-1 rounded-lg">RM {selectedDurian.price_per_kg}/kg</span>
+                        <span className="font-black text-green-900 text-xl">{selectedProduct.type}</span>
+                        <span className="font-bold text-green-800 bg-green-200 px-3 py-1 rounded-lg">RM {selectedProduct.price_per_kg}/kg</span>
                     </div>
 
                     {/* BATCH SELECTOR */}
-                    {selectedDurian.stock_batches && selectedDurian.stock_batches.length > 0 && (
+                    {selectedProduct.stock_batches && selectedProduct.stock_batches.length > 0 && (
                       <div className="mb-4 bg-white p-3 rounded-xl border border-green-200">
                          <label className="block text-xs font-bold text-green-800 uppercase tracking-wider mb-2">Select Stock Batch:</label>
                          <select value={selectedBatch} onChange={e=>setSelectedBatch(e.target.value)} className="w-full border-2 border-green-300 p-2 rounded-lg text-black bg-white focus:ring-2 focus:ring-green-500 outline-none font-bold text-sm transition-all">
                            <option value="auto">⚡ Auto (Deduct Oldest First / All)</option>
-                           {selectedDurian.stock_batches.map((b:any, idx:number) => (
+                           {selectedProduct.stock_batches.map((b:any, idx:number) => (
                              <option key={idx} value={idx}>Batch: {b.date} - Available: {b.qty}pcs / {Number(b.weight).toFixed(3)}kg</option>
                            ))}
                          </select>
@@ -272,7 +297,7 @@ export default function POSSystem() {
 
                     <div className="grid grid-cols-2 gap-4 mb-4">
                       <div>
-                        <label className="block text-xs font-bold text-gray-600 uppercase tracking-wider mb-1">Qty (pcs)</label>
+                        <label className="block text-xs font-bold text-gray-600 uppercase tracking-wider mb-1">Qty (Pcs/Packs)</label>
                         <input type="number" value={currentQty} onChange={e => setCurrentQty(e.target.value === '' ? '' : parseInt(e.target.value))} className={inputClass} placeholder="e.g. 1" />
                       </div>
                       <div>
@@ -298,7 +323,6 @@ export default function POSSystem() {
                             <div>
                               <p className="font-black text-gray-900 text-lg">{item.type}</p>
                               <p className="text-sm text-gray-600 font-medium mt-0.5">{Number(item.weight).toFixed(3)}kg ({item.qty}pcs) @ RM{item.price_per_kg}/kg</p>
-                              {/* DISPLAY CHOSEN BATCH */}
                               <p className="text-xs text-green-700 font-bold mt-1 bg-green-100 inline-block px-2 py-0.5 rounded">📦 {item.batchLabel}</p>
                             </div>
                             <div className="flex items-center gap-4">

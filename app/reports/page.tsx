@@ -19,12 +19,22 @@ export default function ReportsModule() {
   const [saleEditTotal, setSaleEditTotal] = useState('');
   const [saleEditPay, setSaleEditPay] = useState('');
   const [saleEditType, setSaleEditType] = useState('');
+  const [saleEditDate, setSaleEditDate] = useState(''); // NEW: Edit Date
 
   // --- EDIT STATE FOR EXPENSES ---
   const [editExpense, setEditExpense] = useState<any>(null);
   const [expEditCategory, setExpEditCategory] = useState('');
   const [expEditDesc, setExpEditDesc] = useState('');
   const [expEditAmount, setExpEditAmount] = useState('');
+  const [expEditDate, setExpEditDate] = useState(''); // NEW: Edit Date
+
+  // Format Helper for datetime-local input
+  const formatForInput = (iso: string) => {
+    if (!iso) return '';
+    const d = new Date(iso);
+    d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
+    return d.toISOString().slice(0, 16);
+  };
 
   const fetchData = async () => {
     const { data: salesData } = await supabase.from('sales').select('*').order('created_at', { ascending: false });
@@ -120,7 +130,8 @@ export default function ReportsModule() {
     await supabase.from('sales').update({
       total_price: parseFloat(saleEditTotal),
       payment_method: saleEditPay,
-      order_type: saleEditType
+      order_type: saleEditType,
+      created_at: new Date(saleEditDate).toISOString() // Saves newly edited date
     }).eq('id', editSale.id);
     setEditSale(null);
     fetchData();
@@ -128,30 +139,25 @@ export default function ReportsModule() {
 
   // 🟢 NEW REVERSE INVENTORY LOGIC 🟢
   const handleDeleteExpense = async (exp: any) => {
-    if (exp.category === 'Durian Restock') {
+    if (exp.category === 'Durian Restock' || exp.category === 'Other Fruit Restock') {
       if (window.confirm(`⚠️ WARNING: This will remove ${exp.quantity_bought || 0} pcs and ${exp.weight_bought_kg || 0} kg from ${exp.durian_type} inventory. Continue?`)) {
         
         const target = inventory.find(i => i.type === exp.durian_type);
         
         if (target) {
-          // 1. Calculate new totals
           const newQty = target.total_durians - (exp.quantity_bought || 0);
           const newWeight = target.total_weight_kg - (exp.weight_bought_kg || 0);
 
-          // 2. Remove from specific batch
           let updatedBatches = [...(target.stock_batches || [])];
           const restockDate = new Date(exp.created_at).toISOString().split('T')[0];
-          
           const batchIdx = updatedBatches.findIndex((b: any) => b.date === restockDate);
           
           if (batchIdx !== -1) {
              updatedBatches[batchIdx].qty -= (exp.quantity_bought || 0);
              updatedBatches[batchIdx].weight -= (exp.weight_bought_kg || 0);
-             // Clear out empty batches
              updatedBatches = updatedBatches.filter((b: any) => b.qty > 0 || b.weight > 0);
           }
 
-          // 3. Update Database Inventory Table
           await supabase.from('durian_inventory').update({ 
              total_durians: Math.max(0, newQty), 
              total_weight_kg: Math.max(0, newWeight), 
@@ -159,13 +165,11 @@ export default function ReportsModule() {
           }).eq('type', exp.durian_type);
         }
         
-        // 4. Finally, delete the expense record
         await supabase.from('expenses').delete().eq('id', exp.id);
         alert("✅ Restock reversed and inventory updated!");
         fetchData();
       }
     } else {
-      // Normal Expense Deletion
       if (window.confirm("⚠️ Delete this expense record completely?")) {
         await supabase.from('expenses').delete().eq('id', exp.id);
         fetchData();
@@ -177,7 +181,8 @@ export default function ReportsModule() {
     await supabase.from('expenses').update({
       category: expEditCategory,
       description: expEditDesc,
-      total_cost_rm: parseFloat(expEditAmount)
+      total_cost_rm: parseFloat(expEditAmount),
+      created_at: new Date(expEditDate).toISOString() // Saves newly edited date
     }).eq('id', editExpense.id);
     setEditExpense(null);
     fetchData();
@@ -243,10 +248,13 @@ export default function ReportsModule() {
           <button onClick={() => setActiveModal('expenses')} className="bg-yellow-500 text-gray-900 p-10 rounded-3xl shadow-lg hover:bg-yellow-600 hover:scale-105 transition-all text-left flex flex-col justify-between h-48 group">
             <span className="text-4xl">💸</span><div><h3 className="text-2xl font-black group-hover:underline">Expenses Log</h3></div>
           </button>
+          <button onClick={() => setActiveModal('viewReceipts')} className="bg-blue-600 text-white p-10 rounded-3xl shadow-lg hover:bg-blue-700 hover:scale-105 transition-all text-left flex flex-col justify-between h-48 group">
+            <span className="text-4xl">📄</span><div><h3 className="text-2xl font-black group-hover:underline">View Documents</h3><p className="font-medium text-blue-100 mt-1">Receipts & Invoices</p></div>
+          </button>
           <button onClick={() => setActiveModal('low')} className="bg-gray-300 text-gray-800 p-10 rounded-3xl shadow-lg border border-gray-400 hover:bg-gray-400 hover:scale-105 transition-all text-left flex flex-col justify-between h-48 group">
             <span className="text-4xl">⚠️</span><div><h3 className="text-2xl font-black group-hover:underline">Low Inventory Alerts</h3></div>
           </button>
-          <button onClick={() => router.push('/reports/statistics')} className="bg-green-600 text-white p-10 rounded-3xl shadow-lg hover:bg-green-700 hover:scale-105 transition-all text-left flex flex-col justify-between h-48 group lg:col-span-2">
+          <button onClick={() => router.push('/reports/statistics')} className="bg-green-600 text-white p-10 rounded-3xl shadow-lg hover:bg-green-700 hover:scale-105 transition-all text-left flex flex-col justify-between h-48 group">
             <span className="text-4xl">📈</span><div><h3 className="text-2xl font-black group-hover:underline">Statistics & Trends</h3><p className="font-medium text-green-100 mt-1">Graphs & Visual Data</p></div>
           </button>
         </div>
@@ -309,7 +317,13 @@ export default function ReportsModule() {
                     </td>
                     <td className="p-4 font-black text-green-700 text-right text-xl">RM {sale.total_price.toFixed(2)}</td>
                     <td className="p-4 text-center print:hidden border-l-2 border-gray-100">
-                      <button onClick={() => { setEditSale(sale); setSaleEditTotal(sale.total_price); setSaleEditPay(sale.payment_method); setSaleEditType(sale.order_type); }} className="bg-gray-200 text-gray-800 px-3 py-1.5 rounded-lg font-bold hover:bg-yellow-400 mb-2 w-full text-xs shadow-sm">Edit</button>
+                      <button onClick={() => { 
+                          setEditSale(sale); 
+                          setSaleEditTotal(sale.total_price); 
+                          setSaleEditPay(sale.payment_method); 
+                          setSaleEditType(sale.order_type); 
+                          setSaleEditDate(formatForInput(sale.created_at));
+                      }} className="bg-gray-200 text-gray-800 px-3 py-1.5 rounded-lg font-bold hover:bg-yellow-400 mb-2 w-full text-xs shadow-sm">Edit</button>
                       <button onClick={() => handleDeleteSale(sale.id)} className="bg-gray-100 text-gray-500 px-3 py-1.5 rounded-lg font-bold hover:bg-red-600 hover:text-white w-full text-xs shadow-sm">Delete</button>
                     </td>
                   </tr>
@@ -355,7 +369,13 @@ export default function ReportsModule() {
                     </td>
                     <td className="p-4 font-black text-right text-yellow-600">RM {Math.abs(exp.total_cost_rm).toFixed(2)}</td>
                     <td className="p-4 text-center print:hidden border-l-2 border-gray-100">
-                      <button onClick={() => { setEditExpense(exp); setExpEditCategory(exp.category); setExpEditDesc(exp.description); setExpEditAmount(Math.abs(exp.total_cost_rm).toString()); }} className="bg-gray-200 text-gray-800 px-3 py-1.5 rounded-lg font-bold hover:bg-yellow-400 mb-2 w-full text-xs shadow-sm">Edit</button>
+                      <button onClick={() => { 
+                          setEditExpense(exp); 
+                          setExpEditCategory(exp.category); 
+                          setExpEditDesc(exp.description); 
+                          setExpEditAmount(Math.abs(exp.total_cost_rm).toString()); 
+                          setExpEditDate(formatForInput(exp.created_at));
+                      }} className="bg-gray-200 text-gray-800 px-3 py-1.5 rounded-lg font-bold hover:bg-yellow-400 mb-2 w-full text-xs shadow-sm">Edit</button>
                       <button onClick={() => handleDeleteExpense(exp)} className="bg-gray-100 text-gray-500 px-3 py-1.5 rounded-lg font-bold hover:bg-red-600 hover:text-white w-full text-xs shadow-sm">Delete</button>
                     </td>
                   </tr>
@@ -369,6 +389,48 @@ export default function ReportsModule() {
                 </tr>
               </tfoot>
             </table>
+          </Modal>
+        )}
+
+        {/* DOCUMENT VIEWER MODAL (Moved from Admin) */}
+        {activeModal === 'viewReceipts' && (
+          <Modal id="viewReceipts" title="📄 Document & Expense Viewer" onClose={() => setActiveModal(null)}>
+            <div className="overflow-x-auto w-full">
+              <table className="w-full min-w-[600px] text-left border-collapse">
+                <thead>
+                  <tr className="border-b-4 border-gray-300">
+                    <th className="p-4">Date</th>
+                    <th className="p-4">Category</th>
+                    <th className="p-4">Details & Supplier</th>
+                    <th className="p-4 text-right">Amount</th>
+                    <th className="p-4 text-center">Document</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {expenses.map(exp => (
+                    <tr key={exp.id} className="border-b border-gray-200 hover:bg-yellow-50 bg-white">
+                      <td className="p-4 text-sm font-bold text-gray-600">{new Date(exp.created_at).toLocaleDateString()}</td>
+                      <td className="p-4 font-extrabold text-gray-800">{exp.category}</td>
+                      <td className="p-4 text-sm text-gray-700">
+                        {exp.description} 
+                        {exp.supplier_name && <span className="text-green-700 font-bold block mt-1">Supplier: {exp.supplier_name}</span>}
+                      </td>
+                      <td className="p-4 font-black text-gray-800 text-right">RM {Math.abs(exp.total_cost_rm).toFixed(2)}</td>
+                      <td className="p-4 text-center">
+                        {exp.receipt_url ? (
+                         <a href={exp.receipt_url} target="_blank" rel="noopener noreferrer" className="...">
+                          📄 View Document
+                          </a>
+                        ) : (
+                          <span className="text-gray-400 text-xs font-bold">No Document</span>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                  {expenses.length === 0 && <tr><td colSpan={5} className="p-6 text-center text-gray-500 font-bold">No expenses or documents found.</td></tr>}
+                </tbody>
+              </table>
+            </div>
           </Modal>
         )}
 
@@ -391,12 +453,16 @@ export default function ReportsModule() {
         )}
       </div>
 
-      {/* --- EDIT SALE MODAL (Z-INDEX 60 to float over the Sales Modal) --- */}
+      {/* --- EDIT SALE MODAL --- */}
       {editSale && (
         <div className="fixed inset-0 bg-gray-900/90 z-[60] flex items-center justify-center p-4 backdrop-blur-sm">
           <div className="bg-white w-full max-w-md rounded-3xl shadow-2xl p-6 border-4 border-yellow-400">
             <h2 className="text-2xl font-black text-green-900 mb-6 border-b-2 border-gray-200 pb-2">✏️ Edit Sale Data</h2>
             <div className="space-y-4">
+              <div>
+                <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Date & Time</label>
+                <input type="datetime-local" value={saleEditDate} onChange={(e) => setSaleEditDate(e.target.value)} className={inputClass} />
+              </div>
               <div>
                 <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Total Price (RM)</label>
                 <input type="number" step="0.1" value={saleEditTotal} onChange={(e) => setSaleEditTotal(e.target.value)} className={inputClass} />
@@ -425,12 +491,16 @@ export default function ReportsModule() {
         </div>
       )}
 
-      {/* --- EDIT EXPENSE MODAL (Z-INDEX 60) --- */}
+      {/* --- EDIT EXPENSE MODAL --- */}
       {editExpense && (
         <div className="fixed inset-0 bg-gray-900/90 z-[60] flex items-center justify-center p-4 backdrop-blur-sm">
           <div className="bg-white w-full max-w-md rounded-3xl shadow-2xl p-6 border-4 border-yellow-400">
             <h2 className="text-2xl font-black text-green-900 mb-6 border-b-2 border-gray-200 pb-2">✏️ Edit Expense Log</h2>
             <div className="space-y-4">
+              <div>
+                <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Date & Time</label>
+                <input type="datetime-local" value={expEditDate} onChange={(e) => setExpEditDate(e.target.value)} className={inputClass} />
+              </div>
               <div>
                 <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Category</label>
                 <input type="text" value={expEditCategory} onChange={(e) => setExpEditCategory(e.target.value)} className={inputClass} />
@@ -460,7 +530,7 @@ export default function ReportsModule() {
           <img src="/logo.png" alt="Ah Wei 33 Durian Logo" className="w-28 h-28 mx-auto mb-3 object-cover rounded-full border-4 border-green-500" onError={(e) => { e.currentTarget.style.display = 'none' }} />
           <h1 className="text-4xl font-black uppercase tracking-widest text-green-800">Ah Wei 33 Durian</h1>
           <h2 className="text-2xl font-extrabold mt-2 text-gray-800">
-             {printView === 'full' ? 'Official Business Report' : printView === 'sales' ? 'Sales Transaction Log' : printView === 'expenses' ? 'Business Expenses Log' : printView === 'top' ? 'Top Selling Durians Report' : 'Low Inventory Report'}
+             {printView === 'full' ? 'Official Business Report' : printView === 'sales' ? 'Sales Transaction Log' : printView === 'expenses' ? 'Business Expenses Log' : printView === 'top' ? 'Top Selling Durians Report' : printView === 'viewReceipts' ? 'Document & Expense Viewer' : 'Low Inventory Report'}
           </h2>
           <div className="mt-3"><span className="text-gray-800 font-bold bg-yellow-100 px-5 py-2 rounded-full border border-yellow-300 inline-block text-sm">Reporting Period: {getReportDateRangeString()}</span></div>
         </div>
@@ -596,6 +666,35 @@ export default function ReportsModule() {
                   <td className="p-3 font-black text-yellow-700 text-right text-lg">RM {totalExpenses.toFixed(2)}</td>
                 </tr>
               </tfoot>
+            </table>
+          </div>
+        )}
+
+        {(printView === 'full' || printView === 'viewReceipts') && (
+          <div className="mb-12 break-inside-avoid">
+            <h3 className="text-lg font-black text-blue-900 bg-blue-100 px-4 py-2 rounded-t-xl border-2 border-blue-200 border-b-0 uppercase tracking-widest">Document & Expense Viewer</h3>
+            <table className="w-full text-left border-collapse border-2 border-blue-200">
+              <thead>
+                <tr className="bg-blue-50">
+                  <th className="border-b-2 border-blue-200 p-3 text-blue-900 font-bold">Date</th>
+                  <th className="border-b-2 border-blue-200 p-3 text-blue-900 font-bold">Category</th>
+                  <th className="border-b-2 border-blue-200 p-3 text-blue-900 font-bold">Details & Supplier</th>
+                  <th className="border-b-2 border-blue-200 p-3 text-right text-blue-900 font-bold">Amount</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filteredExpenses.map((exp, index) => (
+                  <tr key={exp.id} className={`break-inside-avoid ${index % 2 === 0 ? 'bg-white' : 'bg-blue-50'}`}>
+                    <td className="border-b border-gray-200 p-3 font-semibold text-gray-700">{new Date(exp.created_at).toLocaleDateString()}</td>
+                    <td className="border-b border-gray-200 p-3 font-extrabold text-gray-800">{exp.category}</td>
+                    <td className="border-b border-gray-200 p-3 text-gray-700">
+                      <div>{exp.description}</div>
+                      {exp.supplier_name && <div className="text-xs font-bold text-green-700 mt-0.5">Supplier: {exp.supplier_name}</div>}
+                    </td>
+                    <td className="border-b border-gray-200 p-3 text-right font-black text-gray-800">RM {Math.abs(exp.total_cost_rm).toFixed(2)}</td>
+                  </tr>
+                ))}
+              </tbody>
             </table>
           </div>
         )}
