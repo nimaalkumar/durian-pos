@@ -45,12 +45,12 @@ export default function HomeDashboard() {
           <>
             <Link href="/admin" className="bg-white p-6 rounded-3xl shadow-sm border border-gray-200 flex flex-col items-center justify-center hover:scale-105 hover:shadow-xl hover:border-green-300 transition-all group">
               <span className="text-5xl mb-2 group-hover:animate-bounce">📦</span>
-              <h2 className="text-xl font-extrabold text-gray-800">Admin</h2>
+              <h2 className="text-xl font-extrabold text-gray-800">Inventory Management</h2>
             </Link>
 
             <Link href="/reports" className="bg-white p-6 rounded-3xl shadow-sm border border-gray-200 flex flex-col items-center justify-center hover:scale-105 hover:shadow-xl hover:border-green-300 transition-all group">
               <span className="text-5xl mb-2 group-hover:animate-bounce">📊</span>
-              <h2 className="text-xl font-extrabold text-gray-800">Reports</h2>
+              <h2 className="text-xl font-extrabold text-gray-800">Reports & Statistics</h2>
             </Link>
           </>
         )}
