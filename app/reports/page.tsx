@@ -96,7 +96,7 @@ export default function ReportsModule() {
     }
   });
   const topSellers = Object.values(salesByDurian).sort((a, b) => b.revenue - a.revenue);
-  const lowStock = inventory.filter(i => i.total_weight_kg < 5 || i.total_durians < 5).sort((a, b) => a.total_weight_kg - b.total_weight_kg);
+  const lowStock = inventory.filter(i => i.total_weight_kg < 5 && i.total_durians < 5).sort((a, b) => a.total_weight_kg - b.total_weight_kg);
 
   const totalTopWeight = topSellers.reduce((sum, i) => sum + i.weight, 0);
   const totalTopRev = topSellers.reduce((sum, i) => sum + i.revenue, 0);

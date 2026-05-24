@@ -106,7 +106,7 @@ export default function StatisticsPage() {
   const topSellers = getTopSellers();
   const topSellersMax = Math.max(...topSellers.map(t => t.revenue), 10);
   
-  const lowStock = inventory.filter(i => i.total_weight_kg < 5 || i.total_durians < 5).sort((a, b) => a.total_weight_kg - b.total_weight_kg);
+  const lowStock = inventory.filter(i => i.total_weight_kg < 5 && i.total_durians < 5).sort((a, b) => a.total_weight_kg - b.total_weight_kg);
   const lowStockMax = Math.max(...lowStock.map(t => t.total_weight_kg), 10);
 
   // --- ADVANCED COMPARISON ENGINE ---
