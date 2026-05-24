@@ -42,11 +42,7 @@ export default function HomeDashboard() {
           <p className="text-gray-500 mt-2 font-medium">Process orders & payments</p>
         </Link>
 
-        <Link href="/profile" className="bg-white p-10 rounded-3xl shadow-sm border border-gray-200 flex flex-col items-center justify-center hover:scale-105 hover:shadow-xl hover:border-green-300 transition-all duration-300 group">
-          <span className="text-7xl mb-4 group-hover:animate-bounce">👤</span>
-          <h2 className="text-2xl font-extrabold text-gray-800">Account / Logout</h2>
-          <p className="text-gray-500 mt-2 font-medium">Manage profile settings</p>
-        </Link>
+        
 
         {role === 'super_admin' && (
           <>
