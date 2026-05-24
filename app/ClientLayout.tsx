@@ -1,8 +1,8 @@
 'use client'
-import Link from 'next/link'
 import { useEffect } from 'react'
 import { supabase } from '../lib/supabase'
 import { useRouter, usePathname } from 'next/navigation'
+import Header from '../components/Header' // 👈 1. Import your new Header here!
 
 export default function ClientLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
@@ -23,21 +23,20 @@ export default function ClientLayout({ children }: { children: React.ReactNode }
     return () => { authListener.subscription.unsubscribe(); };
   }, [pathname, router]);
 
+  // If the user is on the Login page, DO NOT show the green header bar
   if (pathname === '/auth') {
     return <div className="bg-gray-100 min-h-screen font-sans">{children}</div>;
   }
 
+  // 2. FOR EVERY OTHER PAGE, SHOW THE GREEN HEADER AT THE TOP!
   return (
-    <>
-      <nav className="bg-green-800 text-white shadow-xl sticky top-0 z-40 h-24 print:hidden flex items-center justify-center">
-          <Link href="/" className="absolute left-1/2 -translate-x-1/2 top-4 z-50">
-            <div className="w-24 h-24 bg-white rounded-full p-1.5 shadow-2xl border-4 border-green-500 overflow-hidden flex items-center justify-center hover:scale-105 transition-transform duration-300">
-              <img src="/logo.png" alt="Ah Wei 33 Durian" className="w-full h-full object-cover rounded-full" onError={(e) => { e.currentTarget.src = 'https://via.placeholder.com/150/e2e8f0/166534?text=Logo' }} />
-            </div>
-          </Link>
-      </nav>
-
-      <main className="max-w-[1400px] mx-auto p-4 md:p-8 mt-4">{children}</main>
-    </>
+    <div className="min-h-screen bg-gray-50 flex flex-col font-sans text-gray-900">
+      <Header /> 
+      
+      {/* 3. Your specific page content (admin, cashier, home) loads inside this <main> tag */}
+      <main className="w-full flex-1">
+        {children} 
+      </main>
+    </div>
   )
 }

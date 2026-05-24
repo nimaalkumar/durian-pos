@@ -1,4 +1,3 @@
-// app/page.tsx
 'use client'
 import { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
@@ -25,17 +24,16 @@ export default function HomeDashboard() {
   }, [router]);
 
   return (
-    // CHANGED: Added 'bg-gray-100' to the container and 'min-h-screen' to ensure it covers the whole page
-    <div className="min-h-screen flex flex-col items-center justify-center text-black bg-gray-100 p-6">
+    // Notice how clean this is? No header code needed here!
+    <div className="flex flex-col items-center justify-center p-6 mt-12 text-black">
       
-      <div className="text-center mb-12 mt-8">
+      <div className="text-center mb-12">
         <h1 className="text-4xl md:text-5xl font-extrabold text-gray-900 mb-2 tracking-tight">
           Welcome back, <span className="text-green-700">{accountName}</span>!
         </h1>
         <p className="text-xl text-gray-600 font-medium">Select a module to continue</p>
       </div>
 
-      {/* Grid container remains the same, but buttons now sit on a light gray background */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-8 w-full max-w-4xl">
         
         <Link href="/pos" className="bg-white p-10 rounded-3xl shadow-sm border border-gray-200 flex flex-col items-center justify-center hover:scale-105 hover:shadow-xl hover:border-green-300 transition-all duration-300 group">
