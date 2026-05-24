@@ -126,10 +126,50 @@ export default function ReportsModule() {
     fetchData();
   };
 
-  const handleDeleteExpense = async (id: string) => {
-    if (window.confirm("⚠️ Delete this expense record completely?")) {
-      await supabase.from('expenses').delete().eq('id', id);
-      fetchData();
+  // 🟢 NEW REVERSE INVENTORY LOGIC 🟢
+  const handleDeleteExpense = async (exp: any) => {
+    if (exp.category === 'Durian Restock') {
+      if (window.confirm(`⚠️ WARNING: This will remove ${exp.quantity_bought || 0} pcs and ${exp.weight_bought_kg || 0} kg from ${exp.durian_type} inventory. Continue?`)) {
+        
+        const target = inventory.find(i => i.type === exp.durian_type);
+        
+        if (target) {
+          // 1. Calculate new totals
+          const newQty = target.total_durians - (exp.quantity_bought || 0);
+          const newWeight = target.total_weight_kg - (exp.weight_bought_kg || 0);
+
+          // 2. Remove from specific batch
+          let updatedBatches = [...(target.stock_batches || [])];
+          const restockDate = new Date(exp.created_at).toISOString().split('T')[0];
+          
+          const batchIdx = updatedBatches.findIndex((b: any) => b.date === restockDate);
+          
+          if (batchIdx !== -1) {
+             updatedBatches[batchIdx].qty -= (exp.quantity_bought || 0);
+             updatedBatches[batchIdx].weight -= (exp.weight_bought_kg || 0);
+             // Clear out empty batches
+             updatedBatches = updatedBatches.filter((b: any) => b.qty > 0 || b.weight > 0);
+          }
+
+          // 3. Update Database Inventory Table
+          await supabase.from('durian_inventory').update({ 
+             total_durians: Math.max(0, newQty), 
+             total_weight_kg: Math.max(0, newWeight), 
+             stock_batches: updatedBatches 
+          }).eq('type', exp.durian_type);
+        }
+        
+        // 4. Finally, delete the expense record
+        await supabase.from('expenses').delete().eq('id', exp.id);
+        alert("✅ Restock reversed and inventory updated!");
+        fetchData();
+      }
+    } else {
+      // Normal Expense Deletion
+      if (window.confirm("⚠️ Delete this expense record completely?")) {
+        await supabase.from('expenses').delete().eq('id', exp.id);
+        fetchData();
+      }
     }
   };
 
@@ -163,11 +203,9 @@ export default function ReportsModule() {
   return (
     <div className="pb-10 bg-gray-100 min-h-screen text-black relative">
       
-      
-
       <div className="print:hidden p-4">
         
-        <div className="flex flex-col md:flex-row justify-between items-center mb-8 gap-4 bg-white p-6 rounded-3xl shadow-sm border border-gray-200">
+        <div className="flex flex-col md:flex-row justify-between items-center mb-8 gap-4 bg-white p-6 rounded-3xl shadow-sm border border-gray-200 mt-4">
           <div><h1 className="text-4xl font-black text-green-900 tracking-tight">Business Reports</h1></div>
           <div className="flex flex-wrap items-center gap-3">
             <label className="font-bold text-gray-700">Time Range:</label>
@@ -318,7 +356,7 @@ export default function ReportsModule() {
                     <td className="p-4 font-black text-right text-yellow-600">RM {Math.abs(exp.total_cost_rm).toFixed(2)}</td>
                     <td className="p-4 text-center print:hidden border-l-2 border-gray-100">
                       <button onClick={() => { setEditExpense(exp); setExpEditCategory(exp.category); setExpEditDesc(exp.description); setExpEditAmount(Math.abs(exp.total_cost_rm).toString()); }} className="bg-gray-200 text-gray-800 px-3 py-1.5 rounded-lg font-bold hover:bg-yellow-400 mb-2 w-full text-xs shadow-sm">Edit</button>
-                      <button onClick={() => handleDeleteExpense(exp.id)} className="bg-gray-100 text-gray-500 px-3 py-1.5 rounded-lg font-bold hover:bg-red-600 hover:text-white w-full text-xs shadow-sm">Delete</button>
+                      <button onClick={() => handleDeleteExpense(exp)} className="bg-gray-100 text-gray-500 px-3 py-1.5 rounded-lg font-bold hover:bg-red-600 hover:text-white w-full text-xs shadow-sm">Delete</button>
                     </td>
                   </tr>
                 ))}
