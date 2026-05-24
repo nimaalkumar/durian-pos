@@ -28,10 +28,10 @@ export default function HomeDashboard() {
     <div className="flex flex-col items-center justify-center p-6 mt-12 text-black">
       
       <div className="text-center mb-12">
-        <h1 className="text-4xl md:text-5xl font-extrabold text-gray-900 mb-2 tracking-tight">
-          Welcome back, <span className="text-green-700">{accountName}</span>!
+        <h1 className="text-4xl md:text-3xl font-extrabold text-gray-900 mb-2 tracking-tight">
+          Welcome , <span className="text-green-700">{accountName}</span>!
         </h1>
-        <p className="text-xl text-gray-600 font-medium">Select a module to continue</p>
+        <p className="text-xl text-gray-600 font-medium">AH WEI 33 DURIAN</p>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-8 w-full max-w-4xl">
