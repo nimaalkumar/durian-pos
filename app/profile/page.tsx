@@ -67,17 +67,7 @@ export default function ProfilePage() {
   return (
     <div className="pb-10 text-black bg-gray-100 min-h-screen relative">
       
-      {/* TOP NAVIGATION BAR */}
-      <div className="flex justify-between items-center bg-gray-200 p-3 shadow-sm w-full">
-        <div className="flex gap-2">
-          <button onClick={() => router.back()} className="bg-gray-300 hover:bg-gray-400 text-gray-800 px-4 py-2 rounded-lg font-bold transition-colors">← Back</button>
-          <button onClick={() => window.location.reload()} className="bg-gray-300 hover:bg-gray-400 text-gray-800 px-4 py-2 rounded-lg font-bold transition-colors">🔄 Refresh</button>
-        </div>
-        <div className="flex gap-2">
-          {/* Profile button not needed since we are on the profile page, but included for layout consistency */}
-          <button onClick={async () => { await supabase.auth.signOut(); router.push('/auth'); }} className="bg-yellow-500 hover:bg-yellow-600 text-gray-900 px-4 py-2 rounded-lg font-bold transition-colors">🚪 Logout</button>
-        </div>
-      </div>
+      
 
       {/* CUSTOM POPUP NOTIFICATION */}
       {toast.show && (

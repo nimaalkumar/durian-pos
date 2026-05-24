@@ -163,17 +163,7 @@ export default function ReportsModule() {
   return (
     <div className="pb-10 bg-gray-100 min-h-screen text-black relative">
       
-      {/* NAVIGATION BAR */}
-      <div className="flex justify-between items-center bg-gray-200 p-3 shadow-sm print:hidden">
-        <div className="flex gap-2">
-          <button onClick={() => router.back()} className="bg-gray-300 hover:bg-gray-400 text-gray-800 px-4 py-2 rounded-lg font-bold transition-colors">← Back</button>
-          <button onClick={() => window.location.reload()} className="bg-gray-300 hover:bg-gray-400 text-gray-800 px-4 py-2 rounded-lg font-bold transition-colors">🔄 Refresh</button>
-        </div>
-        <div className="flex gap-2">
-          <button onClick={() => router.push('/profile')} className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg font-bold transition-colors">👤 Profile</button>
-          <button onClick={async () => { await supabase.auth.signOut(); router.push('/auth'); }} className="bg-yellow-500 hover:bg-yellow-600 text-gray-900 px-4 py-2 rounded-lg font-bold transition-colors">🚪 Logout</button>
-        </div>
-      </div>
+      
 
       <div className="print:hidden p-4">
         

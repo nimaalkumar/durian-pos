@@ -2,6 +2,7 @@
 'use client'
 import { useRouter } from 'next/navigation';
 import { supabase } from '../lib/supabase';
+import Link from 'next/link'; // 👈 1. Import Next.js Link
 
 export default function Header() {
   const router = useRouter();
@@ -18,10 +19,10 @@ export default function Header() {
         </button>
       </div>
 
-      {/* Centered Logo */}
-      <div className="absolute left-1/2 -translate-x-1/2 flex items-center justify-center">
+      {/* 👈 2. Centered Logo - NOW CLICKABLE WITH A HOVER EFFECT */}
+      <Link href="/" title="Go to Home" className="absolute left-1/2 -translate-x-1/2 flex items-center justify-center hover:scale-110 transition-transform duration-200 cursor-pointer">
         <img src="/logo.png" alt="Logo" className="w-14 h-14 object-cover rounded-full border-2 border-white shadow-md bg-white" onError={(e) => { e.currentTarget.style.display = 'none' }} />
-      </div>
+      </Link>
 
       {/* Right Buttons */}
       <div className="flex gap-3">
