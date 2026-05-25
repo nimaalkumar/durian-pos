@@ -14,21 +14,24 @@ export default function ReportsModule() {
   const [activeModal, setActiveModal] = useState<string | null>(null);
   const [printView, setPrintView] = useState<string>('full');
 
+  // --- FILTERS FOR EXPENSES ---
+  const [expFilterSupplier, setExpFilterSupplier] = useState('all');
+  const [expFilterType, setExpFilterType] = useState('all');
+
   // --- EDIT STATE FOR SALES ---
   const [editSale, setEditSale] = useState<any>(null);
   const [saleEditTotal, setSaleEditTotal] = useState('');
   const [saleEditPay, setSaleEditPay] = useState('');
   const [saleEditType, setSaleEditType] = useState('');
-  const [saleEditDate, setSaleEditDate] = useState(''); // NEW: Edit Date
+  const [saleEditDate, setSaleEditDate] = useState(''); 
 
   // --- EDIT STATE FOR EXPENSES ---
   const [editExpense, setEditExpense] = useState<any>(null);
   const [expEditCategory, setExpEditCategory] = useState('');
   const [expEditDesc, setExpEditDesc] = useState('');
   const [expEditAmount, setExpEditAmount] = useState('');
-  const [expEditDate, setExpEditDate] = useState(''); // NEW: Edit Date
+  const [expEditDate, setExpEditDate] = useState(''); 
 
-  // Format Helper for datetime-local input
   const formatForInput = (iso: string) => {
     if (!iso) return '';
     const d = new Date(iso);
@@ -81,7 +84,19 @@ export default function ReportsModule() {
   };
 
   const filteredSales = sales.filter(s => filterByTime(s.created_at));
-  const filteredExpenses = expenses.filter(e => filterByTime(e.created_at));
+  
+  // Expenses Base Filter (Time)
+  const baseFilteredExpenses = expenses.filter(e => filterByTime(e.created_at));
+  
+  // Expenses Advanced Filter (Supplier & Type)
+  const filteredExpenses = baseFilteredExpenses.filter(e => {
+      if (expFilterSupplier !== 'all' && e.supplier_name !== expFilterSupplier) return false;
+      if (expFilterType !== 'all' && e.durian_type !== expFilterType) return false;
+      return true;
+  });
+
+  const uniqueExpenseSuppliers = Array.from(new Set(baseFilteredExpenses.map(e => e.supplier_name).filter(Boolean)));
+  const uniqueExpenseTypes = Array.from(new Set(baseFilteredExpenses.map(e => e.durian_type).filter(Boolean)));
 
   const totalRevenue = filteredSales.reduce((sum, s) => sum + Number(s.total_price), 0);
   const totalExpenses = filteredExpenses.reduce((sum, e) => sum + Number(e.total_cost_rm), 0); 
@@ -118,7 +133,6 @@ export default function ReportsModule() {
     setTimeout(() => { window.print(); }, 100);
   };
 
-  // --- DELETE & EDIT HANDLERS ---
   const handleDeleteSale = async (id: string) => {
     if (window.confirm("⚠️ Delete this sale record? Note: This does NOT automatically return stock to inventory.")) {
       await supabase.from('sales').delete().eq('id', id);
@@ -131,23 +145,19 @@ export default function ReportsModule() {
       total_price: parseFloat(saleEditTotal),
       payment_method: saleEditPay,
       order_type: saleEditType,
-      created_at: new Date(saleEditDate).toISOString() // Saves newly edited date
+      created_at: new Date(saleEditDate).toISOString() 
     }).eq('id', editSale.id);
     setEditSale(null);
     fetchData();
   };
 
-  // 🟢 NEW REVERSE INVENTORY LOGIC 🟢
   const handleDeleteExpense = async (exp: any) => {
     if (exp.category === 'Durian Restock' || exp.category === 'Other Fruit Restock') {
-      if (window.confirm(`⚠️ WARNING: This will remove ${exp.quantity_bought || 0} pcs and ${exp.weight_bought_kg || 0} kg from ${exp.durian_type} inventory. Continue?`)) {
-        
+      if (window.confirm(`⚠️ WARNING: This will remove ${exp.quantity_bought || 0} units and ${exp.weight_bought_kg || 0} kg from ${exp.durian_type} inventory. Continue?`)) {
         const target = inventory.find(i => i.type === exp.durian_type);
-        
         if (target) {
           const newQty = target.total_durians - (exp.quantity_bought || 0);
           const newWeight = target.total_weight_kg - (exp.weight_bought_kg || 0);
-
           let updatedBatches = [...(target.stock_batches || [])];
           const restockDate = new Date(exp.created_at).toISOString().split('T')[0];
           const batchIdx = updatedBatches.findIndex((b: any) => b.date === restockDate);
@@ -164,7 +174,6 @@ export default function ReportsModule() {
              stock_batches: updatedBatches 
           }).eq('type', exp.durian_type);
         }
-        
         await supabase.from('expenses').delete().eq('id', exp.id);
         alert("✅ Restock reversed and inventory updated!");
         fetchData();
@@ -182,7 +191,7 @@ export default function ReportsModule() {
       category: expEditCategory,
       description: expEditDesc,
       total_cost_rm: parseFloat(expEditAmount),
-      created_at: new Date(expEditDate).toISOString() // Saves newly edited date
+      created_at: new Date(expEditDate).toISOString() 
     }).eq('id', editExpense.id);
     setEditExpense(null);
     fetchData();
@@ -226,7 +235,7 @@ export default function ReportsModule() {
           <div className="bg-white p-8 rounded-3xl shadow-sm border border-gray-200">
             <p className="text-gray-500 font-bold uppercase tracking-wider mb-2">Total Sales Revenue</p>
             <p className="text-5xl font-black text-green-600">RM {totalRevenue.toFixed(2)}</p>
-            <p className="text-sm font-bold text-gray-500 mt-4 bg-gray-100 w-fit px-4 py-2 rounded-lg">Sold: {totalWeight.toFixed(3)}kg / {totalQty} pcs</p>
+            <p className="text-sm font-bold text-gray-500 mt-4 bg-gray-100 w-fit px-4 py-2 rounded-lg">Sold: {totalWeight.toFixed(3)}kg / {totalQty} units</p>
           </div>
           <div className="bg-white p-8 rounded-3xl shadow-sm border border-gray-200">
             <p className="text-gray-500 font-bold uppercase tracking-wider mb-2">Total Net Expenses</p>
@@ -240,13 +249,13 @@ export default function ReportsModule() {
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           <button onClick={() => setActiveModal('top')} className="bg-green-700 text-white p-10 rounded-3xl shadow-lg hover:bg-green-800 hover:scale-105 transition-all text-left flex flex-col justify-between h-48 group">
-            <span className="text-4xl">🏆</span><div><h3 className="text-2xl font-black group-hover:underline">Top Selling Durians</h3></div>
+            <span className="text-4xl">🏆</span><div><h3 className="text-2xl font-black group-hover:underline">Top Selling Products</h3></div>
           </button>
           <button onClick={() => setActiveModal('sales')} className="bg-gray-700 text-white p-10 rounded-3xl shadow-lg hover:bg-gray-800 hover:scale-105 transition-all text-left flex flex-col justify-between h-48 group">
             <span className="text-4xl">🧾</span><div><h3 className="text-2xl font-black group-hover:underline">Sales Log</h3></div>
           </button>
           <button onClick={() => setActiveModal('expenses')} className="bg-yellow-500 text-gray-900 p-10 rounded-3xl shadow-lg hover:bg-yellow-600 hover:scale-105 transition-all text-left flex flex-col justify-between h-48 group">
-            <span className="text-4xl">💸</span><div><h3 className="text-2xl font-black group-hover:underline">Expenses Log</h3></div>
+            <span className="text-4xl">💸</span><div><h3 className="text-2xl font-black group-hover:underline">Expenses Log</h3><p className="font-medium text-yellow-900 mt-1">Filters included</p></div>
           </button>
           <button onClick={() => setActiveModal('viewReceipts')} className="bg-blue-600 text-white p-10 rounded-3xl shadow-lg hover:bg-blue-700 hover:scale-105 transition-all text-left flex flex-col justify-between h-48 group">
             <span className="text-4xl">📄</span><div><h3 className="text-2xl font-black group-hover:underline">View Documents</h3><p className="font-medium text-blue-100 mt-1">Receipts & Invoices</p></div>
@@ -259,21 +268,9 @@ export default function ReportsModule() {
           </button>
         </div>
 
-        {lowStock.length > 0 && (
-          <div className="mt-10 bg-yellow-50 border-l-8 border-yellow-500 p-6 rounded-2xl shadow-xl flex items-center animate-pulse">
-            <span className="text-5xl mr-6">🚨</span>
-            <div>
-              <h4 className="text-xl font-black text-yellow-900 uppercase tracking-widest mb-1">Low Stock Warning</h4>
-              <p className="text-yellow-700 font-bold text-lg">
-                {lowStock.map(item => `${item.type} (${Number(item.total_weight_kg).toFixed(3)}kg / ${item.total_durians}pcs)`).join('  •  ')}
-              </p>
-            </div>
-          </div>
-        )}
-
         {/* MODAL DISPLAYS */}
         {activeModal === 'top' && (
-          <Modal id="top" title="🏆 Top Selling Durians" onClose={() => setActiveModal(null)}>
+          <Modal id="top" title="🏆 Top Selling Products" onClose={() => setActiveModal(null)}>
             <table className="w-full text-left border-collapse text-lg">
               <thead><tr className="border-b-4 border-gray-300"><th className="p-4 text-gray-600 font-bold">Type</th><th className="p-4 text-gray-600 font-bold text-center">Weight</th><th className="p-4 text-gray-600 font-bold text-right">Revenue</th></tr></thead>
               <tbody>{topSellers.map((item) => (<tr key={item.type} className="border-b border-gray-200 hover:bg-gray-50"><td className="p-4 font-black">{item.type}</td><td className="p-4 text-center">{item.weight.toFixed(3)} kg</td><td className="p-4 font-black text-green-600 text-right">RM {item.revenue.toFixed(2)}</td></tr>))}</tbody>
@@ -332,7 +329,7 @@ export default function ReportsModule() {
               <tfoot>
                 <tr className="bg-gray-100 border-t-4 border-gray-300">
                   <td className="p-4 font-black text-gray-800 text-right uppercase tracking-widest">Grand Total:</td>
-                  <td className="p-4 font-black text-gray-800">{totalQty} pcs / {totalWeight.toFixed(3)} kg</td>
+                  <td className="p-4 font-black text-gray-800">{totalQty} units / {totalWeight.toFixed(3)} kg</td>
                   <td className="p-4"></td>
                   <td className="p-4 font-black text-green-700 text-right text-xl">RM {totalRevenue.toFixed(2)}</td>
                   <td className="print:hidden"></td>
@@ -344,6 +341,25 @@ export default function ReportsModule() {
 
         {activeModal === 'expenses' && (
           <Modal id="expenses" title="💸 Expenses Log" onClose={() => setActiveModal(null)}>
+            
+            {/* EXPENSE ADVANCED FILTERS */}
+            <div className="bg-yellow-50 border-2 border-yellow-200 p-4 rounded-xl mb-6 flex gap-4 print:hidden">
+               <div className="flex-1">
+                 <label className="block text-xs font-bold text-yellow-900 uppercase mb-1">Filter by Supplier</label>
+                 <select value={expFilterSupplier} onChange={e=>setExpFilterSupplier(e.target.value)} className="w-full p-2 border-2 border-yellow-300 rounded-lg font-bold">
+                    <option value="all">All Suppliers</option>
+                    {uniqueExpenseSuppliers.map((s:any) => <option key={s} value={s}>{s}</option>)}
+                 </select>
+               </div>
+               <div className="flex-1">
+                 <label className="block text-xs font-bold text-yellow-900 uppercase mb-1">Filter by Product Type</label>
+                 <select value={expFilterType} onChange={e=>setExpFilterType(e.target.value)} className="w-full p-2 border-2 border-yellow-300 rounded-lg font-bold">
+                    <option value="all">All Product Types</option>
+                    {uniqueExpenseTypes.map((t:any) => <option key={t} value={t}>{t}</option>)}
+                 </select>
+               </div>
+            </div>
+
             <table className="w-full text-left border-collapse text-md">
               <thead>
                 <tr className="border-b-4 border-gray-300">
@@ -364,6 +380,12 @@ export default function ReportsModule() {
                     <td className="p-4 font-bold text-gray-800">{exp.category}</td>
                     <td className="p-4 text-gray-700">
                       <div>{exp.description}</div>
+                      {/* Detailed calculation based on weight and cost if it's a restock */}
+                      {(exp.category === 'Durian Restock' || exp.category === 'Other Fruit Restock') && exp.weight_bought_kg > 0 && (
+                          <div className="text-sm font-bold text-gray-600 mt-0.5">
+                             {exp.quantity_bought || 0} units @ RM {(Math.abs(exp.total_cost_rm) / exp.weight_bought_kg).toFixed(2)}/kg
+                          </div>
+                      )}
                       {exp.supplier_name && <div className="text-sm font-bold text-green-700 mt-1">Sup: {exp.supplier_name}</div>}
                       {exp.receipt_url && <a href={exp.receipt_url} target="_blank" rel="noreferrer" className="text-xs text-green-600 underline hover:text-green-800 mt-1 inline-block">📄 View Document</a>}
                     </td>
@@ -392,7 +414,6 @@ export default function ReportsModule() {
           </Modal>
         )}
 
-        {/* DOCUMENT VIEWER MODAL (Moved from Admin) */}
         {activeModal === 'viewReceipts' && (
           <Modal id="viewReceipts" title="📄 Document & Expense Viewer" onClose={() => setActiveModal(null)}>
             <div className="overflow-x-auto w-full">
@@ -523,58 +544,64 @@ export default function ReportsModule() {
       )}
 
       {/* ========================================= */}
-      {/* 🖨️ PERFECT PDF PRINT VIEW */}
+      {/* 🖨️ PROFESSIONAL PDF PRINT VIEW */}
       {/* ========================================= */}
-      <div className="hidden print:block w-full text-black bg-white font-sans text-sm p-4" style={{ WebkitPrintColorAdjust: 'exact', printColorAdjust: 'exact' }}>
-        <div className="text-center mb-8 pb-6 border-b-4 border-green-600 break-inside-avoid">
-          <img src="/logo.png" alt="Ah Wei 33 Durian Logo" className="w-28 h-28 mx-auto mb-3 object-cover rounded-full border-4 border-green-500" onError={(e) => { e.currentTarget.style.display = 'none' }} />
-          <h1 className="text-4xl font-black uppercase tracking-widest text-green-800">Ah Wei 33 Durian</h1>
-          <h2 className="text-2xl font-extrabold mt-2 text-gray-800">
-             {printView === 'full' ? 'Official Business Report' : printView === 'sales' ? 'Sales Transaction Log' : printView === 'expenses' ? 'Business Expenses Log' : printView === 'top' ? 'Top Selling Durians Report' : printView === 'viewReceipts' ? 'Document & Expense Viewer' : 'Low Inventory Report'}
+      <div className="hidden print:block w-full text-black bg-white font-sans text-xs p-4" style={{ WebkitPrintColorAdjust: 'exact', printColorAdjust: 'exact' }}>
+        
+        {/* LOGO & HEADER (COLORED) */}
+        <div className="text-center mb-8 pb-4 break-inside-avoid">
+          <img src="/logo.png" alt="Ah Wei 33 Durian Logo" className="w-24 h-24 mx-auto mb-2 object-cover rounded-full border-4 border-green-500" onError={(e) => { e.currentTarget.style.display = 'none' }} />
+          <h1 className="text-3xl font-black uppercase tracking-widest text-green-800">Ah Wei 33 Durian</h1>
+          <h2 className="text-xl font-extrabold mt-1 text-gray-800">
+             {printView === 'full' ? 'Official Business Dashboard' : printView === 'sales' ? 'Sales Transaction Log' : printView === 'expenses' ? 'Business Expenses Log' : printView === 'top' ? 'Top Selling Products Report' : printView === 'viewReceipts' ? 'Document Viewer' : 'Low Inventory Report'}
           </h2>
-          <div className="mt-3"><span className="text-gray-800 font-bold bg-yellow-100 px-5 py-2 rounded-full border border-yellow-300 inline-block text-sm">Reporting Period: {getReportDateRangeString()}</span></div>
+          <div className="mt-2"><span className="text-gray-800 font-bold text-xs uppercase tracking-widest border-b border-black pb-1">Period: {getReportDateRangeString()}</span></div>
         </div>
 
-        <div className="flex justify-between items-center mb-10 gap-4 break-inside-avoid">
-          <div className="flex-1 bg-green-50 p-5 rounded-2xl border-2 border-green-200 text-center shadow-sm">
-            <p className="font-extrabold text-green-800 uppercase text-xs mb-1 tracking-wider">Total Revenue</p>
-            <p className="text-3xl font-black text-green-700">RM {totalRevenue.toFixed(2)}</p>
+        {/* OVERALL STATS - ONLY SHOW IN 'FULL' REPORT */}
+        {printView === 'full' && (
+          <div className="flex justify-between items-center mb-10 gap-4 break-inside-avoid border-b-2 border-black pb-6">
+            <div className="flex-1 text-center">
+              <p className="font-extrabold text-black uppercase text-[10px] tracking-wider mb-1">Total Revenue</p>
+              <p className="text-2xl font-black text-black">RM {totalRevenue.toFixed(2)}</p>
+            </div>
+            <div className="flex-1 text-center border-l-2 border-black">
+              <p className="font-extrabold text-black uppercase text-[10px] tracking-wider mb-1">Total Expenses</p>
+              <p className="text-2xl font-black text-black">RM {totalExpenses.toFixed(2)}</p>
+            </div>
+            <div className="flex-1 text-center border-l-2 border-black">
+              <p className="font-extrabold text-black uppercase text-[10px] tracking-wider mb-1">Net Profit</p>
+              <p className="text-2xl font-black text-black">RM {grossProfit.toFixed(2)}</p>
+            </div>
           </div>
-          <div className="flex-1 bg-gray-50 p-5 rounded-2xl border-2 border-gray-200 text-center shadow-sm">
-            <p className="font-extrabold text-gray-800 uppercase text-xs mb-1 tracking-wider">Total Expenses</p>
-            <p className="text-3xl font-black text-yellow-600">RM {totalExpenses.toFixed(2)}</p>
-          </div>
-          <div className="flex-1 bg-yellow-50 p-5 rounded-2xl border-2 border-yellow-300 text-center shadow-sm">
-            <p className="font-extrabold text-yellow-900 uppercase text-xs mb-1 tracking-wider">Net Profit</p>
-            <p className="text-3xl font-black text-yellow-700">RM {grossProfit.toFixed(2)}</p>
-          </div>
-        </div>
+        )}
 
+        {/* PROFESSIONAL TABLES (NO BACKGROUND COLORS, BLACK BORDERS) */}
         {(printView === 'full' || printView === 'top') && (
-          <div className="mb-12 break-inside-avoid">
-            <h3 className="text-lg font-black text-green-900 bg-green-100 px-4 py-2 rounded-t-xl border-2 border-green-200 border-b-0 uppercase tracking-widest">Top Selling Durians</h3>
-            <table className="w-full text-left border-collapse border-2 border-green-200">
+          <div className="mb-10 break-inside-avoid">
+            <h3 className="text-sm font-black text-black uppercase tracking-widest mb-2">Top Selling Products</h3>
+            <table className="w-full text-left border-collapse border border-black print:text-[10px]">
               <thead>
-                <tr className="bg-green-50">
-                  <th className="border-b-2 border-green-200 p-3 text-green-900 font-bold">Durian Type</th>
-                  <th className="border-b-2 border-green-200 p-3 text-center text-green-900 font-bold">Weight Sold</th>
-                  <th className="border-b-2 border-green-200 p-3 text-right text-green-900 font-bold">Revenue Generated</th>
+                <tr>
+                  <th className="border border-black p-2 font-bold uppercase">Product Type</th>
+                  <th className="border border-black p-2 text-center font-bold uppercase">Weight Sold</th>
+                  <th className="border border-black p-2 text-right font-bold uppercase">Revenue Generated</th>
                 </tr>
               </thead>
               <tbody>
-                {topSellers.map((item, index) => (
-                  <tr key={item.type} className={`break-inside-avoid ${index % 2 === 0 ? 'bg-white' : 'bg-gray-50'}`}>
-                    <td className="border-b border-gray-200 p-3 font-extrabold text-gray-800">{item.type}</td>
-                    <td className="border-b border-gray-200 p-3 text-center font-semibold text-gray-700">{item.weight.toFixed(3)} kg</td>
-                    <td className="border-b border-gray-200 p-3 text-right font-black text-green-700">RM {item.revenue.toFixed(2)}</td>
+                {topSellers.map((item) => (
+                  <tr key={item.type} className="break-inside-avoid">
+                    <td className="border border-black p-2 font-bold">{item.type}</td>
+                    <td className="border border-black p-2 text-center">{item.weight.toFixed(3)} kg</td>
+                    <td className="border border-black p-2 text-right font-black">RM {item.revenue.toFixed(2)}</td>
                   </tr>
                 ))}
               </tbody>
               <tfoot>
-                <tr className="bg-green-100 border-t-4 border-green-300">
-                  <td className="p-3 font-black text-green-900 text-right uppercase tracking-widest">Grand Total:</td>
-                  <td className="p-3 font-black text-green-900 text-center">{totalTopWeight.toFixed(3)} kg</td>
-                  <td className="p-3 font-black text-green-900 text-right text-lg">RM {totalTopRev.toFixed(2)}</td>
+                <tr>
+                  <td className="border border-black p-2 font-black text-right uppercase tracking-widest">Grand Total:</td>
+                  <td className="border border-black p-2 font-black text-center">{totalTopWeight.toFixed(3)} kg</td>
+                  <td className="border border-black p-2 font-black text-right">RM {totalTopRev.toFixed(2)}</td>
                 </tr>
               </tfoot>
             </table>
@@ -582,49 +609,48 @@ export default function ReportsModule() {
         )}
 
         {(printView === 'full' || printView === 'sales') && (
-          <div className="mb-12 break-inside-avoid">
-            <h3 className="text-lg font-black text-gray-900 bg-gray-100 px-4 py-2 rounded-t-xl border-2 border-gray-200 border-b-0 uppercase tracking-widest">Sales Transaction Log</h3>
-            <table className="w-full text-left border-collapse border-2 border-gray-200">
+          <div className="mb-10 break-inside-avoid">
+            <h3 className="text-sm font-black text-black uppercase tracking-widest mb-2">Sales Transaction Log</h3>
+            <table className="w-full text-left border-collapse border border-black print:text-[10px]">
               <thead>
-                <tr className="bg-gray-50">
-                  <th className="border-b-2 border-gray-200 p-3 w-1/4 text-gray-900 font-bold">Order Info</th>
-                  <th className="border-b-2 border-gray-200 p-3 w-5/12 text-gray-900 font-bold">Items Ordered</th>
-                  <th className="border-b-2 border-gray-200 p-3 text-gray-900 font-bold">Order Details</th>
-                  <th className="border-b-2 border-gray-200 p-3 text-right text-gray-900 font-bold">Total (RM)</th>
+                <tr>
+                  <th className="border border-black p-2 font-bold uppercase w-1/4">Date / Order No</th>
+                  <th className="border border-black p-2 font-bold uppercase w-5/12">Items Ordered</th>
+                  <th className="border border-black p-2 font-bold uppercase">Details</th>
+                  <th className="border border-black p-2 text-right font-bold uppercase">Total (RM)</th>
                 </tr>
               </thead>
               <tbody>
-                {filteredSales.map((sale, index) => (
-                  <tr key={sale.id} className={`break-inside-avoid ${index % 2 === 0 ? 'bg-white' : 'bg-gray-50'}`}>
-                    <td className="border-b border-gray-200 p-3">
-                       <div className="font-black text-green-800 text-sm">{sale.order_number || 'N/A'}</div>
-                       <div className="text-xs font-semibold text-gray-700">{new Date(sale.created_at).toLocaleString('en-GB', { dateStyle: 'short', timeStyle: 'short' })}</div>
-                       <div className="text-xs text-gray-500 uppercase mt-1">Cashier: {sale.cashier_name || 'System'}</div>
+                {filteredSales.map((sale) => (
+                  <tr key={sale.id} className="break-inside-avoid">
+                    <td className="border border-black p-2">
+                       <div className="font-bold">{sale.order_number || 'N/A'}</div>
+                       <div>{new Date(sale.created_at).toLocaleString('en-GB', { dateStyle: 'short', timeStyle: 'short' })}</div>
                     </td>
-                    <td className="border-b border-gray-200 p-3">
+                    <td className="border border-black p-2">
                       {sale.cart_items && sale.cart_items.length > 0 ? (
                          sale.cart_items.map((item: any, idx: number) => (
-                            <div key={idx} className="font-extrabold text-sm text-gray-800">• {item.type} <span className="text-gray-500 font-medium ml-1">- {Number(item.weight).toFixed(3)}kg ({item.qty}pcs)</span></div>
+                            <div key={idx} className="font-bold">• {item.type} <span className="font-normal">- {Number(item.weight).toFixed(3)}kg ({item.qty}pcs)</span></div>
                          ))
                       ) : (
-                         <div className="font-extrabold text-sm text-gray-800">• {sale.durian_type} <span className="text-gray-500 font-medium ml-1">- {Number(sale.weight_kg).toFixed(3)}kg</span></div>
+                         <div className="font-bold">• {sale.durian_type} <span className="font-normal">- {Number(sale.weight_kg).toFixed(3)}kg</span></div>
                       )}
                     </td>
-                    <td className="border-b border-gray-200 p-3 text-xs uppercase font-bold text-gray-600">
-                      <div className="mb-1">Type: <span className="text-green-800">{sale.order_type === 'eat_here' ? `Eat Here (Table ${sale.table_number})` : sale.order_type === 'pack' ? 'Pack' : sale.order_type === 'delivery' ? 'Delivery' : 'Walk-in'}</span></div>
-                      <div>Pay: <span className="text-green-800">{sale.payment_method}</span></div>
+                    <td className="border border-black p-2 uppercase">
+                      <div>Type: {sale.order_type === 'eat_here' ? `Eat Here` : sale.order_type === 'pack' ? 'Pack' : sale.order_type === 'delivery' ? 'Delivery' : 'Walk-in'}</div>
+                      <div>Pay: {sale.payment_method}</div>
                     </td>
-                    <td className="border-b border-gray-200 p-3 text-right font-black text-green-700 text-base">RM {sale.total_price.toFixed(2)}</td>
+                    <td className="border border-black p-2 text-right font-black text-base">RM {sale.total_price.toFixed(2)}</td>
                   </tr>
                 ))}
-                {filteredSales.length === 0 && <tr><td colSpan={4} className="p-4 text-center italic text-gray-500 bg-white">No sales recorded.</td></tr>}
+                {filteredSales.length === 0 && <tr><td colSpan={4} className="p-4 text-center border border-black">No sales recorded.</td></tr>}
               </tbody>
               <tfoot>
-                <tr className="bg-gray-100 border-t-4 border-gray-300">
-                  <td className="p-3 font-black text-gray-900 text-right uppercase tracking-widest">Grand Total:</td>
-                  <td className="p-3 font-black text-gray-900">{totalQty} pcs / {totalWeight.toFixed(3)} kg</td>
-                  <td className="p-3"></td>
-                  <td className="p-3 font-black text-green-700 text-right text-lg">RM {totalRevenue.toFixed(2)}</td>
+                <tr>
+                  <td className="border border-black p-2 font-black text-right uppercase tracking-widest">Grand Total:</td>
+                  <td className="border border-black p-2 font-black">{totalQty} units / {totalWeight.toFixed(3)} kg</td>
+                  <td className="border border-black p-2"></td>
+                  <td className="border border-black p-2 font-black text-right text-sm">RM {totalRevenue.toFixed(2)}</td>
                 </tr>
               </tfoot>
             </table>
@@ -632,99 +658,79 @@ export default function ReportsModule() {
         )}
 
         {(printView === 'full' || printView === 'expenses') && (
-          <div className="mb-12 break-inside-avoid">
-            <h3 className="text-lg font-black text-yellow-900 bg-yellow-100 px-4 py-2 rounded-t-xl border-2 border-yellow-200 border-b-0 uppercase tracking-widest">Business Expenses Log</h3>
-            <table className="w-full text-left border-collapse border-2 border-yellow-200">
+          <div className="mb-10 break-inside-avoid">
+            <h3 className="text-sm font-black text-black uppercase tracking-widest mb-2">
+              Business Expenses Log 
+              {expFilterSupplier !== 'all' && ` | Supplier: ${expFilterSupplier}`}
+              {expFilterType !== 'all' && ` | Product: ${expFilterType}`}
+            </h3>
+            <table className="w-full text-left border-collapse border border-black print:text-[10px]">
               <thead>
-                <tr className="bg-yellow-50">
-                  <th className="border-b-2 border-yellow-200 p-3 w-1/4 text-yellow-900 font-bold">Date & User</th>
-                  <th className="border-b-2 border-yellow-200 p-3 w-1/4 text-yellow-900 font-bold">Category</th>
-                  <th className="border-b-2 border-yellow-200 p-3 w-1/3 text-yellow-900 font-bold">Details</th>
-                  <th className="border-b-2 border-yellow-200 p-3 text-right text-yellow-900 font-bold">Amount (RM)</th>
+                <tr>
+                  <th className="border border-black p-2 font-bold uppercase w-1/4">Date / User</th>
+                  <th className="border border-black p-2 font-bold uppercase w-1/4">Category</th>
+                  <th className="border border-black p-2 font-bold uppercase w-1/3">Details</th>
+                  <th className="border border-black p-2 text-right font-bold uppercase">Amount (RM)</th>
                 </tr>
               </thead>
               <tbody>
-                {filteredExpenses.map((exp, index) => (
-                  <tr key={exp.id} className={`break-inside-avoid ${index % 2 === 0 ? 'bg-white' : 'bg-gray-50'}`}>
-                    <td className="border-b border-gray-200 p-3">
-                       <div className="text-xs font-semibold text-gray-700">{new Date(exp.created_at).toLocaleString('en-GB', { dateStyle: 'short', timeStyle: 'short' })}</div>
-                       <div className="text-xs uppercase text-gray-500 font-bold mt-0.5">By: {exp.user_name || 'Admin'}</div>
+                {filteredExpenses.map((exp) => (
+                  <tr key={exp.id} className="break-inside-avoid">
+                    <td className="border border-black p-2">
+                       <div className="font-bold">{new Date(exp.created_at).toLocaleString('en-GB', { dateStyle: 'short', timeStyle: 'short' })}</div>
+                       <div className="uppercase">By: {exp.user_name || 'Admin'}</div>
                     </td>
-                    <td className="border-b border-gray-200 p-3 font-extrabold text-gray-800 text-sm">{exp.category}</td>
-                    <td className="border-b border-gray-200 p-3 text-sm text-gray-700">
+                    <td className="border border-black p-2 font-bold">{exp.category}</td>
+                    <td className="border border-black p-2">
                       <div>{exp.description}</div>
-                      {exp.supplier_name && <div className="text-xs font-bold text-green-700 mt-0.5">Supplier: {exp.supplier_name}</div>}
+                      {(exp.category === 'Durian Restock' || exp.category === 'Other Fruit Restock') && exp.weight_bought_kg > 0 && (
+                          <div className="font-bold">
+                             {exp.quantity_bought || 0} units @ RM {(Math.abs(exp.total_cost_rm) / exp.weight_bought_kg).toFixed(2)}/kg
+                          </div>
+                      )}
+                      {exp.supplier_name && <div className="font-bold mt-0.5">Supplier: {exp.supplier_name}</div>}
                     </td>
-                    <td className={`border-b border-gray-200 p-3 text-right font-black text-base text-yellow-700`}>{exp.total_cost_rm < 0 ? '+' : ''}{Math.abs(exp.total_cost_rm).toFixed(2)}</td>
+                    <td className="border border-black p-2 text-right font-black text-base">{exp.total_cost_rm < 0 ? '+' : ''}{Math.abs(exp.total_cost_rm).toFixed(2)}</td>
                   </tr>
                 ))}
-                {filteredExpenses.length === 0 && <tr><td colSpan={4} className="p-4 text-center italic text-gray-500 bg-white">No expenses recorded.</td></tr>}
+                {filteredExpenses.length === 0 && <tr><td colSpan={4} className="p-4 text-center border border-black">No expenses recorded.</td></tr>}
               </tbody>
               <tfoot>
-                <tr className="bg-yellow-100 border-t-4 border-yellow-300">
-                  <td colSpan={3} className="p-3 font-black text-yellow-900 text-right uppercase tracking-widest">Total Expenses:</td>
-                  <td className="p-3 font-black text-yellow-700 text-right text-lg">RM {totalExpenses.toFixed(2)}</td>
+                <tr>
+                  <td colSpan={3} className="border border-black p-2 font-black text-right uppercase tracking-widest">Total Expenses:</td>
+                  <td className="border border-black p-2 font-black text-right text-sm">RM {totalExpenses.toFixed(2)}</td>
                 </tr>
               </tfoot>
             </table>
           </div>
         )}
 
-        {(printView === 'full' || printView === 'viewReceipts') && (
-          <div className="mb-12 break-inside-avoid">
-            <h3 className="text-lg font-black text-blue-900 bg-blue-100 px-4 py-2 rounded-t-xl border-2 border-blue-200 border-b-0 uppercase tracking-widest">Document & Expense Viewer</h3>
-            <table className="w-full text-left border-collapse border-2 border-blue-200">
-              <thead>
-                <tr className="bg-blue-50">
-                  <th className="border-b-2 border-blue-200 p-3 text-blue-900 font-bold">Date</th>
-                  <th className="border-b-2 border-blue-200 p-3 text-blue-900 font-bold">Category</th>
-                  <th className="border-b-2 border-blue-200 p-3 text-blue-900 font-bold">Details & Supplier</th>
-                  <th className="border-b-2 border-blue-200 p-3 text-right text-blue-900 font-bold">Amount</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filteredExpenses.map((exp, index) => (
-                  <tr key={exp.id} className={`break-inside-avoid ${index % 2 === 0 ? 'bg-white' : 'bg-blue-50'}`}>
-                    <td className="border-b border-gray-200 p-3 font-semibold text-gray-700">{new Date(exp.created_at).toLocaleDateString()}</td>
-                    <td className="border-b border-gray-200 p-3 font-extrabold text-gray-800">{exp.category}</td>
-                    <td className="border-b border-gray-200 p-3 text-gray-700">
-                      <div>{exp.description}</div>
-                      {exp.supplier_name && <div className="text-xs font-bold text-green-700 mt-0.5">Supplier: {exp.supplier_name}</div>}
-                    </td>
-                    <td className="border-b border-gray-200 p-3 text-right font-black text-gray-800">RM {Math.abs(exp.total_cost_rm).toFixed(2)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-
         {(printView === 'full' || printView === 'low') && (
-          <div className="mb-12 break-inside-avoid">
-            <h3 className="text-lg font-black text-gray-900 bg-gray-100 px-4 py-2 rounded-t-xl border-2 border-gray-200 border-b-0 uppercase tracking-widest">Low Inventory Alerts</h3>
-            <table className="w-full text-left border-collapse border-2 border-gray-200">
+          <div className="mb-10 break-inside-avoid">
+            <h3 className="text-sm font-black text-black uppercase tracking-widest mb-2">Low Inventory Alerts</h3>
+            <table className="w-full text-left border-collapse border border-black print:text-[10px]">
               <thead>
-                <tr className="bg-gray-50">
-                  <th className="border-b-2 border-gray-200 p-3 text-gray-900 font-bold">Durian Type</th>
-                  <th className="border-b-2 border-gray-200 p-3 text-center text-gray-900 font-bold">Remaining Quantity</th>
-                  <th className="border-b-2 border-gray-200 p-3 text-right text-gray-900 font-bold">Remaining Weight</th>
+                <tr>
+                  <th className="border border-black p-2 font-bold uppercase">Product Type</th>
+                  <th className="border border-black p-2 text-center font-bold uppercase">Remaining Quantity</th>
+                  <th className="border border-black p-2 text-right font-bold uppercase">Remaining Weight</th>
                 </tr>
               </thead>
               <tbody>
-                {lowStock.map((item, index) => (
-                  <tr key={item.type} className={`break-inside-avoid ${index % 2 === 0 ? 'bg-white' : 'bg-yellow-50'}`}>
-                    <td className="border-b border-gray-200 p-3 font-extrabold text-yellow-900">{item.type}</td>
-                    <td className="border-b border-gray-200 p-3 text-center font-bold text-gray-800">{item.total_durians} pcs</td>
-                    <td className="border-b border-gray-200 p-3 text-right font-bold text-gray-800">{Number(item.total_weight_kg).toFixed(3)} kg</td>
+                {lowStock.map((item) => (
+                  <tr key={item.type} className="break-inside-avoid">
+                    <td className="border border-black p-2 font-bold">{item.type}</td>
+                    <td className="border border-black p-2 text-center font-bold">{item.total_durians} units</td>
+                    <td className="border border-black p-2 text-right font-bold">{Number(item.total_weight_kg).toFixed(3)} kg</td>
                   </tr>
                 ))}
-                {lowStock.length === 0 && <tr><td colSpan={3} className="p-4 text-center font-bold text-green-600 bg-white">All stock levels are healthy! ✅</td></tr>}
+                {lowStock.length === 0 && <tr><td colSpan={3} className="p-4 text-center border border-black font-bold">All stock levels are healthy! ✅</td></tr>}
               </tbody>
               <tfoot>
-                <tr className="bg-gray-100 border-t-4 border-gray-300">
-                  <td className="p-3 font-black text-gray-900 text-right uppercase tracking-widest">Total Low Stock:</td>
-                  <td className="p-3 font-black text-gray-900 text-center">{totalLowQty} pcs</td>
-                  <td className="p-3 font-black text-gray-900 text-right text-lg">{totalLowWeight.toFixed(3)} kg</td>
+                <tr>
+                  <td className="border border-black p-2 font-black text-right uppercase tracking-widest">Total Low Stock:</td>
+                  <td className="border border-black p-2 font-black text-center">{totalLowQty} units</td>
+                  <td className="border border-black p-2 font-black text-right">{totalLowWeight.toFixed(3)} kg</td>
                 </tr>
               </tfoot>
             </table>

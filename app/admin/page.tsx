@@ -2,9 +2,8 @@
 import { useState, useEffect, useRef } from 'react';
 import { supabase } from '../../lib/supabase';
 import { useRouter } from 'next/navigation';
-import Header from '@/components/Header'; // Assuming Header is used
 
-// --- SHARED STYLES (STRICT GRAY, YELLOW, GREEN) ---
+// --- SHARED STYLES ---
 const inputClass = "w-full border-2 border-gray-300 p-3 rounded-xl text-black bg-gray-50 focus:bg-white focus:ring-2 focus:ring-green-400 outline-none transition-all font-semibold";
 const modalBtnClass = "bg-green-600 text-white font-extrabold py-4 rounded-xl hover:bg-green-700 shadow-md transition-all active:scale-[0.98] text-lg w-full mt-4";
 const deleteBtnClass = "bg-gray-200 text-gray-800 font-bold px-4 py-2 rounded-lg hover:bg-yellow-400 hover:text-black transition-colors";
@@ -60,10 +59,11 @@ function DurianRow({ item, onSave, onDelete, onViewBatches }: { item: any, onSav
     <tr className="border-b border-gray-200 hover:bg-yellow-50 transition-colors bg-white">
       <td className="p-4 font-extrabold text-gray-900 text-lg">
         {item.type}
-        <div className="mt-2">
+        <div className="mt-2 flex gap-2">
            <button onClick={() => onViewBatches(item)} className="text-xs bg-gray-200 hover:bg-yellow-300 text-gray-700 font-bold py-1.5 px-3 rounded-lg transition-colors shadow-sm">
               📦 Batches
            </button>
+           {item.image_url && <span className="text-xs bg-green-100 text-green-800 font-bold py-1.5 px-3 rounded-lg">🖼️ Has Image</span>}
         </div>
       </td>
       <td className="p-4 align-top pt-6"><input type="number" ref={qtyRef} defaultValue={item.total_durians} className="border-2 border-gray-300 p-2 rounded-lg w-20 text-center font-bold text-black" /></td>
@@ -100,8 +100,8 @@ export default function AdminModule() {
   const [activeModal, setActiveModal] = useState<string | null>(null);
   const [viewBatchDurian, setViewBatchDurian] = useState<any>(null); 
 
-  // Form States for Stock In
-  const [stockForms, setStockForms] = useState([{ id: 1, type: '', isNew: false, newType: '', qty: '', weight: '', supplierPriceKg: '', newSellingPrice: '', isNewSupplier: false, supplierName: '', receiptFile: null as File | null }]);
+  // Form States for Stock In (Combined)
+  const [stockForms, setStockForms] = useState([{ id: 1, category: 'Durian', type: '', isNew: false, newType: '', qty: '', weight: '', supplierPriceKg: '', newSellingPrice: '', isNewSupplier: false, supplierName: '', receiptFile: null as File | null }]);
   
   // Spoilage State
   const [spoilType, setSpoilType] = useState('');
@@ -123,13 +123,12 @@ export default function AdminModule() {
   const [staffRate, setStaffRate] = useState('per hour');
   const [expenseReceipt, setExpenseReceipt] = useState<File | null>(null);
 
-  // Mix Tupperware Assembly State
-  const [mixSourceDurian, setMixSourceDurian] = useState('');
-  const [mixSourcePcs, setMixSourcePcs] = useState('');
+  // Advanced Mix Tupperware Assembly State
+  const [mixSources, setMixSources] = useState([{ id: Date.now(), durianType: '', pcs: '', weight: '' }]);
   const [mixSourcePack, setMixSourcePack] = useState('');
   const [mixNumTup, setMixNumTup] = useState('');
-  const [mixWeight, setMixWeight] = useState('');
   const [mixTotalRM, setMixTotalRM] = useState('');
+  const [mixImageFile, setMixImageFile] = useState<File | null>(null);
 
   const [toast, setToast] = useState<{show: boolean, msg: string, type: 'error'|'success'}>({show: false, msg: '', type: 'success'});
   const showToast = (msg: string, type: 'error'|'success' = 'success') => {
@@ -181,14 +180,11 @@ export default function AdminModule() {
     return data.publicUrl;
   };
 
-  const handleAddStockRow = () => setStockForms([...stockForms, { id: Date.now(), type: '', isNew: false, newType: '', qty: '', weight: '', supplierPriceKg: '', newSellingPrice: '', isNewSupplier: false, supplierName: '', receiptFile: null }]);
+  const handleAddStockRow = () => setStockForms([...stockForms, { id: Date.now(), category: 'Durian', type: '', isNew: false, newType: '', qty: '', weight: '', supplierPriceKg: '', newSellingPrice: '', isNewSupplier: false, supplierName: '', receiptFile: null }]);
   const handleRemoveStockRow = (id: number) => setStockForms(stockForms.filter(form => form.id !== id));
   const updateStockForm = (id: number, field: string, value: any) => setStockForms(prev => prev.map(form => form.id === id ? { ...form, [field]: value } : form));
 
   const submitMultiStockIn = async () => {
-    const isFruit = activeModal === 'stockInFruit';
-    const expenseCategory = isFruit ? 'Other Fruit Restock' : 'Durian Restock';
-
     for (const form of stockForms) {
       const actualType = form.isNew ? form.newType.trim() : form.type;
       if (!actualType || !form.qty || !form.weight || !form.newSellingPrice || !form.supplierPriceKg) {
@@ -197,9 +193,9 @@ export default function AdminModule() {
 
       if (window.confirm(`Confirm stock in for ${form.qty} pcs of ${actualType}?`)) {
         const receiptUrl = await uploadFile(form.receiptFile);
-
         const existing = inventory.find(i => i.type.toLowerCase() === actualType.toLowerCase());
         const updatedBatches = processBatchFIFO(existing?.stock_batches || [], parseInt(form.qty), parseFloat(form.weight));
+        const expenseCategory = form.category === 'Durian' ? 'Durian Restock' : 'Other Fruit Restock';
 
         if (existing) {
           await supabase.from('durian_inventory').update({ 
@@ -223,67 +219,87 @@ export default function AdminModule() {
         });
       }
     }
-    showToast(`✅ ${isFruit ? 'Fruit' : 'Durian'} Stock updated and logged successfully!`);
-    setStockForms([{ id: Date.now(), type: '', isNew: false, newType: '', qty: '', weight: '', supplierPriceKg: '', newSellingPrice: '', isNewSupplier: false, supplierName: '', receiptFile: null }]);
+    showToast(`✅ Stock updated and logged successfully!`);
+    setStockForms([{ id: Date.now(), category: 'Durian', type: '', isNew: false, newType: '', qty: '', weight: '', supplierPriceKg: '', newSellingPrice: '', isNewSupplier: false, supplierName: '', receiptFile: null }]);
     fetchData();
     setActiveModal(null);
   };
 
-  // Mix Tupperware Assembly Function
+  // Mix Tupperware Assembly Setup
+  const handleAddMixSource = () => setMixSources([...mixSources, { id: Date.now(), durianType: '', pcs: '', weight: '' }]);
+  const handleRemoveMixSource = (id: number) => setMixSources(mixSources.filter(src => src.id !== id));
+  const updateMixSource = (id: number, field: string, value: string) => setMixSources(prev => prev.map(src => src.id === id ? { ...src, [field]: value } : src));
+
   const submitMixTupperware = async () => {
-    if (!mixSourceDurian || !mixSourcePack || !mixNumTup || !mixWeight || !mixTotalRM) {
-      return showToast("Please fill all required fields", "error");
+    if (!mixSourcePack || !mixNumTup || !mixTotalRM || mixSources.some(s => !s.durianType || !s.weight)) {
+      return showToast("Please fill all required fields for all durians and packaging", "error");
     }
 
-    const durianData = inventory.find(i => i.type === mixSourceDurian);
     const packData = packInventory.find(p => p.item_name === mixSourcePack);
+    if (!packData || packData.quantity < parseInt(mixNumTup)) return showToast("Not enough packaging in inventory!", "error");
 
-    if (!durianData || !packData) return;
-    if (durianData.total_weight_kg < parseFloat(mixWeight)) return showToast("Not enough inventory weight!", "error");
-    if (packData.quantity < parseInt(mixNumTup)) return showToast("Not enough packaging in inventory!", "error");
+    // Validate stock for all selected durians
+    for (const src of mixSources) {
+       const durianData = inventory.find(i => i.type === src.durianType);
+       if (!durianData || durianData.total_weight_kg < parseFloat(src.weight)) {
+           return showToast(`Not enough stock for ${src.durianType}!`, "error");
+       }
+    }
 
-    if (window.confirm(`Confirm packaging ${mixNumTup}x ${mixSourcePack} using ${mixWeight}kg of ${mixSourceDurian}?`)) {
+    const totalMixWeight = mixSources.reduce((sum, src) => sum + parseFloat(src.weight), 0);
+    const mixName = `Mix Durians in ${mixSourcePack}`;
+
+    if (window.confirm(`Confirm creating ${mixNumTup}x ${mixName} (${totalMixWeight}kg total)?`)) {
       
-      // 1. Deduct Source Item
-      const pcsToDeduct = parseInt(mixSourcePcs) || 0;
-      const updatedSourceBatches = processBatchFIFO(durianData.stock_batches || [], -pcsToDeduct, -parseFloat(mixWeight));
-      await supabase.from('durian_inventory').update({
-        total_durians: Math.max(0, durianData.total_durians - pcsToDeduct),
-        total_weight_kg: Math.max(0, durianData.total_weight_kg - parseFloat(mixWeight)),
-        stock_batches: updatedSourceBatches
-      }).eq('type', mixSourceDurian);
+      // 1. Upload Optional Image
+      const imageUrl = await uploadFile(mixImageFile);
 
-      // 2. Deduct Tupperware
+      // 2. Deduct Source Items
+      for (const src of mixSources) {
+          const durianData = inventory.find(i => i.type === src.durianType);
+          const pcsToDeduct = parseInt(src.pcs) || 0;
+          const updatedSourceBatches = processBatchFIFO(durianData.stock_batches || [], -pcsToDeduct, -parseFloat(src.weight));
+          
+          await supabase.from('durian_inventory').update({
+            total_durians: Math.max(0, durianData.total_durians - pcsToDeduct),
+            total_weight_kg: Math.max(0, durianData.total_weight_kg - parseFloat(src.weight)),
+            stock_batches: updatedSourceBatches
+          }).eq('type', src.durianType);
+      }
+
+      // 3. Deduct Tupperware
       await supabase.from('packaging_inventory').update({
         quantity: Math.max(0, packData.quantity - parseInt(mixNumTup))
       }).eq('item_name', mixSourcePack);
 
-      // 3. Add New Mixed Item to Inventory
-      const mixName = `${mixSourceDurian} in ${mixSourcePack}`;
+      // 4. Add New Mixed Item to Inventory
       const existingMix = inventory.find(i => i.type === mixName);
-      const pricePerKg = parseFloat(mixTotalRM) / parseFloat(mixWeight); // POS handles pricing by weight
+      const pricePerKg = parseFloat(mixTotalRM) / totalMixWeight; 
       
       if (existingMix) {
-        const updatedMixBatches = processBatchFIFO(existingMix.stock_batches || [], parseInt(mixNumTup), parseFloat(mixWeight));
+        const updatedMixBatches = processBatchFIFO(existingMix.stock_batches || [], parseInt(mixNumTup), totalMixWeight);
         await supabase.from('durian_inventory').update({
           total_durians: existingMix.total_durians + parseInt(mixNumTup),
-          total_weight_kg: existingMix.total_weight_kg + parseFloat(mixWeight),
+          total_weight_kg: existingMix.total_weight_kg + totalMixWeight,
           price_per_kg: pricePerKg,
-          stock_batches: updatedMixBatches
+          stock_batches: updatedMixBatches,
+          image_url: imageUrl || existingMix.image_url // keep old if none uploaded
         }).eq('type', mixName);
       } else {
-        const newBatches = processBatchFIFO([], parseInt(mixNumTup), parseFloat(mixWeight));
+        const newBatches = processBatchFIFO([], parseInt(mixNumTup), totalMixWeight);
         await supabase.from('durian_inventory').insert({
           type: mixName,
           total_durians: parseInt(mixNumTup),
-          total_weight_kg: parseFloat(mixWeight),
+          total_weight_kg: totalMixWeight,
           price_per_kg: pricePerKg,
-          stock_batches: newBatches
+          stock_batches: newBatches,
+          image_url: imageUrl
         });
       }
 
       showToast("✅ Mix Durians Assembly Completed!");
-      setMixSourceDurian(''); setMixSourcePcs(''); setMixSourcePack(''); setMixNumTup(''); setMixWeight(''); setMixTotalRM('');
+      setMixSources([{ id: Date.now(), durianType: '', pcs: '', weight: '' }]); 
+      setMixSourcePack(''); setMixNumTup(''); setMixTotalRM(''); setMixImageFile(null);
       setActiveModal(null);
       fetchData();
     }
@@ -295,7 +311,6 @@ export default function AdminModule() {
     if (!target) return;
 
     if (window.confirm(`Log ${spoilAction.replace('_', ' ')} for ${spoilQty} pcs of ${spoilType}?`)) {
-      
       let updatedBatches = [...(target.stock_batches || [])];
 
       if (spoilAction === 'spoilage' || spoilAction === 'return_supplier') {
@@ -402,41 +417,33 @@ export default function AdminModule() {
       </div>
       
       {/* DASHBOARD GRID */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6 px-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 px-4">
         <button onClick={() => router.push('/today_sales')} className="bg-green-500 text-white p-8 rounded-3xl shadow-lg hover:bg-green-600 hover:scale-105 transition-all text-left flex flex-col justify-between h-48 group">
           <span className="text-4xl">📊</span><div><h3 className="text-xl font-black group-hover:underline">Today's Sales</h3><p className="font-bold text-green-900 mt-1">Live tracking & Edits</p></div>
         </button>
         
-        <button onClick={() => setActiveModal('stockInDurian')} className="bg-green-600 text-white p-8 rounded-3xl shadow-lg hover:bg-green-700 hover:scale-105 transition-all text-left flex flex-col justify-between h-48 group">
-          <span className="text-4xl">📥</span><div><h3 className="text-xl font-black group-hover:underline">Durian Stock In</h3><p className="font-medium text-green-100 mt-1">Add batches & supplier</p></div>
+        <button onClick={() => setActiveModal('stockIn')} className="bg-green-600 text-white p-8 rounded-3xl shadow-lg hover:bg-green-700 hover:scale-105 transition-all text-left flex flex-col justify-between h-48 group">
+          <span className="text-4xl">📥</span><div><h3 className="text-xl font-black group-hover:underline">Product Stock In</h3><p className="font-medium text-green-100 mt-1">Add Durians & Fruits</p></div>
         </button>
 
-        <button onClick={() => setActiveModal('stockInFruit')} className="bg-red-500 text-white p-8 rounded-3xl shadow-lg hover:bg-red-600 hover:scale-105 transition-all text-left flex flex-col justify-between h-48 group">
-          <span className="text-4xl">🍎</span><div><h3 className="text-xl font-black group-hover:underline">Other Fruits Stock In</h3><p className="font-medium text-red-100 mt-1">Add fruits & supplier</p></div>
+        <button onClick={() => setActiveModal('mixTupperware')} className="bg-purple-600 text-white p-8 rounded-3xl shadow-lg hover:bg-purple-700 hover:scale-105 transition-all text-left flex flex-col justify-between h-48 group">
+          <span className="text-4xl">🍱</span><div><h3 className="text-xl font-black group-hover:underline">Mix Assembly</h3><p className="font-medium text-purple-200 mt-1">Pack multiple durians</p></div>
         </button>
 
         <button onClick={() => setActiveModal('packStock')} className="bg-gray-200 text-gray-800 p-8 rounded-3xl shadow-lg border-2 border-gray-300 hover:bg-gray-300 hover:scale-105 transition-all text-left flex flex-col justify-between h-48 group">
           <span className="text-4xl">🛍️</span><div><h3 className="text-xl font-black group-hover:underline">Packaging Stock In</h3><p className="font-bold text-gray-600 mt-1">Add bags & boxes</p></div>
         </button>
-
-        <button onClick={() => setActiveModal('mixTupperware')} className="bg-purple-600 text-white p-8 rounded-3xl shadow-lg hover:bg-purple-700 hover:scale-105 transition-all text-left flex flex-col justify-between h-48 group">
-          <span className="text-4xl">🍱</span><div><h3 className="text-xl font-black group-hover:underline">Mix Durians Assembly</h3><p className="font-medium text-purple-200 mt-1">Pack into tupperware</p></div>
-        </button>
         
+        <button onClick={() => setActiveModal('manageInventory')} className="bg-white border-4 border-green-600 text-green-900 p-8 rounded-3xl shadow-lg hover:bg-green-50 hover:scale-105 transition-all text-left flex flex-col justify-between h-48 group">
+          <span className="text-4xl">✏️</span><div><h3 className="text-xl font-black group-hover:underline">Manage Inventory</h3><p className="font-bold text-green-700 mt-1">Modify/Delete Products</p></div>
+        </button>
+
         <button onClick={() => setActiveModal('spoilage')} className="bg-yellow-500 text-black p-8 rounded-3xl shadow-lg hover:bg-yellow-600 hover:scale-105 transition-all text-left flex flex-col justify-between h-48 group">
           <span className="text-4xl">🔄</span><div><h3 className="text-xl font-black group-hover:underline">Spoilage & Returns</h3><p className="font-bold text-yellow-900 mt-1">Record lost & returns</p></div>
         </button>
         
         <button onClick={() => setActiveModal('expenses')} className="bg-gray-800 text-white p-8 rounded-3xl shadow-lg hover:bg-black hover:scale-105 transition-all text-left flex flex-col justify-between h-48 group">
           <span className="text-4xl">💸</span><div><h3 className="text-xl font-black group-hover:underline">Log Expenses</h3><p className="font-medium text-gray-300 mt-1">Rent, Staff & Bills</p></div>
-        </button>
-        
-        <button onClick={() => setActiveModal('manageDurian')} className="bg-white border-4 border-green-600 text-green-900 p-8 rounded-3xl shadow-lg hover:bg-green-50 hover:scale-105 transition-all text-left flex flex-col justify-between h-48 group">
-          <span className="text-4xl">✏️</span><div><h3 className="text-xl font-black group-hover:underline">Edit Durians</h3><p className="font-bold text-green-700 mt-1">Modify/Delete</p></div>
-        </button>
-
-        <button onClick={() => setActiveModal('manageFruits')} className="bg-white border-4 border-red-500 text-red-900 p-8 rounded-3xl shadow-lg hover:bg-red-50 hover:scale-105 transition-all text-left flex flex-col justify-between h-48 group">
-          <span className="text-4xl">🥭</span><div><h3 className="text-xl font-black group-hover:underline">Edit Other Fruits</h3><p className="font-bold text-red-700 mt-1">Modify/Delete</p></div>
         </button>
         
         <button onClick={() => setActiveModal('managePack')} className="bg-white border-4 border-yellow-500 text-yellow-900 p-8 rounded-3xl shadow-lg hover:bg-yellow-50 hover:scale-105 transition-all text-left flex flex-col justify-between h-48 group">
@@ -446,21 +453,29 @@ export default function AdminModule() {
 
       {/* --- MODALS --- */}
 
-      {/* STOCK IN (Handles both Durian and Other Fruits) */}
-      {(activeModal === 'stockInDurian' || activeModal === 'stockInFruit') && (
-        <Modal title={activeModal === 'stockInFruit' ? "📥 Other Fruits Stock In" : "📥 Durian Stock In"} onClose={() => setActiveModal(null)}>
+      {/* COMBINED STOCK IN */}
+      {activeModal === 'stockIn' && (
+        <Modal title="📥 Product Stock In" onClose={() => setActiveModal(null)}>
           <button onClick={handleAddStockRow} className="mb-4 bg-gray-200 text-gray-800 font-bold px-5 py-2.5 rounded-xl hover:bg-yellow-400 shadow-sm transition-colors w-full md:w-auto">+ Add Another Item</button>
           <div className="space-y-6">
             {stockForms.map((form, index) => (
               <div key={form.id} className="p-6 bg-gray-50 border-2 border-gray-200 rounded-2xl relative shadow-sm">
                 {stockForms.length > 1 && ( <button onClick={() => handleRemoveStockRow(form.id)} className="absolute top-4 right-4 text-red-500 font-bold">✕ Remove</button> )}
                 <h3 className="font-extrabold mb-4 text-green-900 text-lg border-b-2 border-gray-200 pb-2">Item #{index + 1}</h3>
+                
+                <div className="mb-4 flex gap-4">
+                  <label className="flex items-center gap-2 font-bold cursor-pointer"><input type="radio" name={`cat-${form.id}`} checked={form.category === 'Durian'} onChange={() => updateStockForm(form.id, 'category', 'Durian')} /> Durian</label>
+                  <label className="flex items-center gap-2 font-bold cursor-pointer"><input type="radio" name={`cat-${form.id}`} checked={form.category === 'Other Fruit'} onChange={() => updateStockForm(form.id, 'category', 'Other Fruit')} /> Other Fruit</label>
+                </div>
+
                 <div className="grid md:grid-cols-5 gap-4">
                   <div className="md:col-span-1">
-                    <label className="block text-xs font-bold text-gray-500 uppercase">Item Type</label>
+                    <label className="block text-xs font-bold text-gray-500 uppercase">{form.category} Type</label>
                     {!form.isNew ? (
                       <select value={form.type} onChange={(e) => { if (e.target.value === 'ADD_NEW') updateStockForm(form.id, 'isNew', true); else updateStockForm(form.id, 'type', e.target.value); }} className={inputClass}>
-                        <option value="">Select Type...</option>{inventory.map(i => <option key={i.type} value={i.type}>{i.type}</option>)}<option value="ADD_NEW" className="font-bold text-green-600">+ New Type</option>
+                        <option value="">Select Type...</option>
+                        {inventory.map(i => <option key={i.type} value={i.type}>{i.type}</option>)}
+                        <option value="ADD_NEW" className="font-bold text-green-600">+ Add New {form.category}</option>
                       </select>
                     ) : (
                       <div className="flex gap-2"><input type="text" placeholder="New name..." onChange={e=>updateStockForm(form.id, 'newType', e.target.value)} className={inputClass} /><button onClick={() => updateStockForm(form.id, 'isNew', false)} className="bg-gray-300 px-4 rounded-xl font-bold">✕</button></div>
@@ -496,25 +511,39 @@ export default function AdminModule() {
         </Modal>
       )}
 
-      {/* MIX DURIANS TUPPERWARE ASSEMBLY */}
+      {/* ADVANCED MIX DURIANS TUPPERWARE ASSEMBLY */}
       {activeModal === 'mixTupperware' && (
         <Modal title="🍱 Mix Durians in Tupperware Assembly" onClose={() => setActiveModal(null)}>
           <div className="space-y-4">
             <div className="bg-purple-50 border border-purple-200 p-4 rounded-xl mb-4">
-              <p className="text-purple-800 font-bold text-sm">Create a new packaged item by combining existing durian stock and tupperware packaging.</p>
+              <p className="text-purple-800 font-bold text-sm">Create a new packaged item by combining multiple existing durian stocks and tupperware packaging.</p>
             </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Source Durian (To Deduct)</label>
-                <select value={mixSourceDurian} onChange={e=>setMixSourceDurian(e.target.value)} className={inputClass}>
-                  <option value="">Select Existing Durian...</option>
-                  {inventory.map(i => <option key={i.type} value={i.type}>{i.type}</option>)}
-                </select>
-              </div>
-              <div>
-                <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Durian Pieces Used (Optional)</label>
-                <input type="number" value={mixSourcePcs} onChange={e=>setMixSourcePcs(e.target.value)} className={inputClass} placeholder="Pcs to deduct" />
-              </div>
+            
+            <div className="bg-white border-2 border-gray-200 p-4 rounded-2xl mb-4">
+               <h3 className="font-bold text-gray-700 uppercase tracking-widest text-xs mb-3">Durians Included in Mix:</h3>
+               {mixSources.map((src, idx) => (
+                  <div key={src.id} className="grid grid-cols-12 gap-3 mb-3 items-end">
+                     <div className="col-span-5">
+                       <label className="block text-[10px] font-bold text-gray-500 uppercase">Durian Type</label>
+                       <select value={src.durianType} onChange={e=>updateMixSource(src.id, 'durianType', e.target.value)} className={inputClass}>
+                         <option value="">Select Existing...</option>
+                         {inventory.map(i => <option key={i.type} value={i.type}>{i.type}</option>)}
+                       </select>
+                     </div>
+                     <div className="col-span-3">
+                       <label className="block text-[10px] font-bold text-gray-500 uppercase">Pcs Deduct</label>
+                       <input type="number" value={src.pcs} onChange={e=>updateMixSource(src.id, 'pcs', e.target.value)} className={inputClass} placeholder="Pcs" />
+                     </div>
+                     <div className="col-span-3">
+                       <label className="block text-[10px] font-bold text-gray-500 uppercase">Weight (kg)</label>
+                       <input type="number" step="0.001" value={src.weight} onChange={e=>updateMixSource(src.id, 'weight', e.target.value)} className={inputClass} placeholder="kg" />
+                     </div>
+                     <div className="col-span-1">
+                        {mixSources.length > 1 && <button onClick={() => handleRemoveMixSource(src.id)} className="w-full bg-red-100 text-red-600 font-bold h-[52px] rounded-xl hover:bg-red-200">✕</button>}
+                     </div>
+                  </div>
+               ))}
+               <button onClick={handleAddMixSource} className="text-sm font-bold text-purple-600 bg-purple-100 px-4 py-2 rounded-lg hover:bg-purple-200">+ Add Another Durian to Mix</button>
             </div>
 
             <div className="grid grid-cols-2 gap-4">
@@ -533,14 +562,15 @@ export default function AdminModule() {
 
             <div className="grid grid-cols-2 gap-4 border-t-2 border-gray-200 pt-4 mt-2">
               <div>
-                <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Total Weight inside Tupperware (kg)</label>
-                <input type="number" step="0.001" value={mixWeight} onChange={e=>setMixWeight(e.target.value)} className={inputClass} placeholder="e.g., 2.500" />
+                <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Upload Picture of Mix (Shows in POS)</label>
+                <input type="file" accept="image/*" onChange={e=>setMixImageFile(e.target.files?.[0] || null)} className={inputClass} />
               </div>
               <div>
-                <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Total Value/Selling Price (RM)</label>
-                <input type="number" step="0.1" value={mixTotalRM} onChange={e=>setMixTotalRM(e.target.value)} className={inputClass} placeholder="Total RM" />
+                <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Total Overall Value/Selling Price (RM)</label>
+                <input type="number" step="0.1" value={mixTotalRM} onChange={e=>setMixTotalRM(e.target.value)} className={inputClass} placeholder="Total RM for this assembly" />
               </div>
             </div>
+            
             <button onClick={submitMixTupperware} className={modalBtnClass}>Confirm Assembly</button>
           </div>
         </Modal>
@@ -551,7 +581,7 @@ export default function AdminModule() {
         <Modal title="🔄 Spoilage & Returns" onClose={() => setActiveModal(null)}>
           <div className="space-y-4">
             <select value={spoilType} onChange={e=>{setSpoilType(e.target.value); setSpoilBatch('auto');}} className={inputClass}>
-               <option value="">Select Durian...</option>
+               <option value="">Select Item...</option>
                {inventory.map(i => <option key={i.type} value={i.type}>{i.type}</option>)}
             </select>
             
@@ -630,9 +660,9 @@ export default function AdminModule() {
         </Modal>
       )}
 
-      {/* MANAGE DURIANS AND FRUITS TABLE */}
-      {(activeModal === 'manageDurian' || activeModal === 'manageFruits') && (
-        <Modal title={activeModal === 'manageFruits' ? "🥭 Edit/Delete Other Fruits" : "✏️ Edit/Delete Durians"} onClose={() => setActiveModal(null)}>
+      {/* COMBINED MANAGE INVENTORY TABLE */}
+      {activeModal === 'manageInventory' && (
+        <Modal title="✏️ Manage Inventory (Durians & Fruits)" onClose={() => setActiveModal(null)}>
           <div className="overflow-x-auto w-full">
             <table className="w-full text-left min-w-[600px]">
               <thead><tr className="border-b-4 border-green-600"><th className="p-4">Type</th><th className="p-4 text-center">Qty</th><th className="p-4 text-center">Weight</th><th className="p-4 text-center">Price</th><th className="p-4 text-center">Actions</th></tr></thead>
@@ -654,7 +684,7 @@ export default function AdminModule() {
         </Modal>
       )}
 
-      {/* NEW MODAL: BATCH VIEWER */}
+      {/* BATCH VIEWER */}
       {viewBatchDurian && (
         <div className="fixed inset-0 bg-gray-900/90 z-[60] flex items-center justify-center p-4">
           <div className="bg-white w-full max-w-md rounded-3xl shadow-2xl p-6 border-4 border-green-500">

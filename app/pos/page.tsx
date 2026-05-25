@@ -3,7 +3,6 @@ import { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabase';
 import { useRouter } from 'next/navigation';
 
-// --- FIFO BATCH PROCESSOR (Used for auto-deductions) ---
 const processBatchFIFO = (batches: any[], qtyChange: number, weightChange: number) => {
   let newBatches = [...(batches || [])];
   const todayStr = new Date().toISOString().split('T')[0];
@@ -41,7 +40,7 @@ export default function POSSystem() {
   
   // FILTER & SEARCH STATE
   const [searchQuery, setSearchQuery] = useState('');
-  const [filterType, setFilterType] = useState('all'); // 'all', 'fresh', 'mix'
+  const [filterType, setFilterType] = useState('all');
 
   // CART STATE
   const [selectedProduct, setSelectedProduct] = useState<any>(null);
@@ -50,6 +49,9 @@ export default function POSSystem() {
   const [currentWeight, setCurrentWeight] = useState('');
   const [cart, setCart] = useState<any[]>([]);
   
+  // IMAGE VIEWER
+  const [viewImage, setViewImage] = useState<string | null>(null);
+
   // CHECKOUT STATE
   const [paymentMethod, setPaymentMethod] = useState('cash');
   const [orderType, setOrderType] = useState('eat_here'); 
@@ -82,10 +84,9 @@ export default function POSSystem() {
     fetchData();
   }, []);
 
-  // Compute Filtered Inventory
   const filteredInventory = inventory.filter(item => {
     const matchesSearch = item.type.toLowerCase().includes(searchQuery.toLowerCase());
-    const isMix = item.type.toLowerCase().includes(' in '); // e.g. "Musang King in Tupperware"
+    const isMix = item.type.toLowerCase().includes(' in '); 
 
     if (filterType === 'fresh') return matchesSearch && !isMix;
     if (filterType === 'mix') return matchesSearch && isMix;
@@ -109,7 +110,6 @@ export default function POSSystem() {
 
     const currentCartWeight = cart.filter(item => item.type === selectedProduct.type && item.batch === selectedBatch).reduce((sum, item) => sum + item.weight, 0);
     const totalRequestedWeight = currentCartWeight + parseFloat(currentWeight);
-    
     const totalRequestedQty = cart.filter(item => item.type === selectedProduct.type && item.batch === selectedBatch).reduce((sum, item) => sum + item.qty, 0) + finalQty;
 
     if (totalRequestedWeight > maxWeight) {
@@ -176,7 +176,6 @@ export default function POSSystem() {
           if (dbItem) {
             const newQty = dbItem.total_durians - item.qty;
             const newWeight = dbItem.total_weight_kg - item.weight;
-            
             let updatedBatches = [...(dbItem.stock_batches || [])];
             
             if (item.batch === 'auto') {
@@ -221,6 +220,15 @@ export default function POSSystem() {
         </div>
       )}
 
+      {viewImage && (
+        <div className="fixed inset-0 bg-black/90 z-[100] flex items-center justify-center p-4">
+           <div className="relative max-w-3xl w-full">
+              <button onClick={() => setViewImage(null)} className="absolute -top-10 right-0 text-white font-bold text-xl bg-red-600 px-4 py-1 rounded-lg">Close ✕</button>
+              <img src={viewImage} alt="Product" className="w-full h-auto max-h-[80vh] object-contain rounded-2xl border-4 border-white shadow-2xl" />
+           </div>
+        </div>
+      )}
+
       {/* DASHBOARD HEADER */}
       <div className="flex justify-between items-center bg-white p-4 m-4 rounded-2xl shadow-sm border border-gray-200">
         <h1 className="text-2xl font-black text-green-900">POS Cashier</h1>
@@ -238,7 +246,6 @@ export default function POSSystem() {
              <h2 className="text-2xl font-bold text-gray-800">1. Select Products</h2>
           </div>
           
-          {/* SEARCH AND FILTER BAR */}
           <div className="mb-4 space-y-3 shrink-0">
              <input type="text" placeholder="🔍 Search durians, fruits, or mix packs..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="w-full border-2 border-gray-300 p-3 rounded-xl text-black bg-gray-50 focus:bg-white focus:ring-2 focus:ring-green-400 outline-none transition-all font-semibold" />
              <div className="flex gap-2">
@@ -252,15 +259,21 @@ export default function POSSystem() {
           <div className="grid gap-3 overflow-y-auto max-h-[650px] pr-2">
             {filteredInventory.length === 0 && <div className="text-center py-10 text-gray-400 font-bold italic">No products found.</div>}
             {filteredInventory.map((item) => (
-              <button key={item.type} onClick={() => { setSelectedProduct(item); setSelectedBatch('auto'); }} className={`p-5 border-2 rounded-2xl text-left transition-all duration-200 shadow-sm
-                  ${selectedProduct?.type === item.type ? 'bg-green-50 border-green-600 ring-4 ring-green-100 text-black transform scale-[1.02]' : 'bg-white border-gray-200 hover:bg-gray-50 hover:border-green-300 text-black'}`}>
-                <div className="font-black text-xl text-gray-900">{item.type}</div>
-                <div className="text-md text-gray-600 mt-2">
-                  <span className="font-extrabold text-green-700 bg-green-100 px-2 py-1 rounded-md">RM {item.price_per_kg}/kg</span> 
-                  <span className="mx-2">|</span> 
-                  Stock: <span className="font-bold">{Number(item.total_weight_kg).toFixed(3)}kg</span> ({item.total_durians} pcs/packs)
+              <div key={item.type} className={`p-5 border-2 rounded-2xl text-left transition-all duration-200 shadow-sm flex flex-col ${selectedProduct?.type === item.type ? 'bg-green-50 border-green-600 ring-4 ring-green-100 text-black transform scale-[1.02]' : 'bg-white border-gray-200 hover:bg-gray-50 hover:border-green-300 text-black'}`}>
+                <div className="flex justify-between items-start">
+                   <div className="flex-1 cursor-pointer" onClick={() => { setSelectedProduct(item); setSelectedBatch('auto'); }}>
+                     <div className="font-black text-xl text-gray-900">{item.type}</div>
+                     <div className="text-md text-gray-600 mt-2">
+                       <span className="font-extrabold text-green-700 bg-green-100 px-2 py-1 rounded-md">RM {item.price_per_kg}/kg</span> 
+                       <span className="mx-2">|</span> 
+                       Stock: <span className="font-bold">{Number(item.total_weight_kg).toFixed(3)}kg</span> ({item.total_durians} pcs/packs)
+                     </div>
+                   </div>
+                   {item.image_url && (
+                      <button onClick={(e) => { e.stopPropagation(); setViewImage(item.image_url); }} className="ml-2 bg-blue-100 text-blue-700 font-bold px-3 py-2 rounded-xl text-xs hover:bg-blue-200 shadow-sm whitespace-nowrap">🖼️ View Image</button>
+                   )}
                 </div>
-              </button>
+              </div>
             ))}
           </div>
         </div>
@@ -268,10 +281,7 @@ export default function POSSystem() {
         {/* RIGHT SIDE: CART & CHECKOUT */}
         <div className="md:col-span-6 bg-white p-6 shadow-md rounded-3xl border border-gray-200 flex flex-col">
           <h2 className="text-2xl font-bold mb-4 text-gray-800 border-b border-gray-200 pb-4">2. Manage Order</h2>
-          
           <div className="flex-1 overflow-y-auto pr-2">
-            
-            {/* ADD TO CART WIDGET */}
             <div className={`p-5 rounded-2xl mb-6 border-2 transition-all shadow-sm ${selectedProduct ? 'border-green-400 bg-green-50' : 'border-dashed border-gray-300 bg-gray-50'}`}>
               {!selectedProduct ? (
                   <div className="text-center text-gray-500 font-bold py-4">👈 Select a product from the left to add</div>
@@ -282,7 +292,6 @@ export default function POSSystem() {
                         <span className="font-bold text-green-800 bg-green-200 px-3 py-1 rounded-lg">RM {selectedProduct.price_per_kg}/kg</span>
                     </div>
 
-                    {/* BATCH SELECTOR */}
                     {selectedProduct.stock_batches && selectedProduct.stock_batches.length > 0 && (
                       <div className="mb-4 bg-white p-3 rounded-xl border border-green-200">
                          <label className="block text-xs font-bold text-green-800 uppercase tracking-wider mb-2">Select Stock Batch:</label>
@@ -310,7 +319,6 @@ export default function POSSystem() {
               )}
             </div>
 
-            {/* CART ITEMS LIST */}
             <div className="mb-6">
                 <h3 className="font-extrabold text-gray-800 mb-3 flex items-center justify-between">
                   <span>🛒 Items in Cart</span>
@@ -334,7 +342,6 @@ export default function POSSystem() {
                 </div>
             </div>
 
-            {/* CHECKOUT CONFIG */}
             <div className="flex gap-2 mb-6 bg-gray-100 p-2 rounded-xl">
               <button onClick={() => setOrderType('eat_here')} className={`flex-1 py-3 rounded-lg font-bold border-2 transition-all ${orderType === 'eat_here' ? 'bg-white text-green-700 border-green-500 shadow-sm' : 'border-transparent text-gray-500 hover:text-gray-800'}`}>🍽️ Eat Here</button>
               <button onClick={() => setOrderType('pack')} className={`flex-1 py-3 rounded-lg font-bold border-2 transition-all ${orderType === 'pack' ? 'bg-white text-yellow-600 border-yellow-400 shadow-sm' : 'border-transparent text-gray-500 hover:text-gray-800'}`}>🛍️ Pack</button>
