@@ -255,16 +255,16 @@ export default function ReportsModule() {
             <span className="text-4xl">🧾</span><div><h3 className="text-2xl font-black group-hover:underline">Sales Log</h3></div>
           </button>
           <button onClick={() => setActiveModal('expenses')} className="bg-yellow-500 text-gray-900 p-10 rounded-3xl shadow-lg hover:bg-yellow-600 hover:scale-105 transition-all text-left flex flex-col justify-between h-48 group">
-            <span className="text-4xl">💸</span><div><h3 className="text-2xl font-black group-hover:underline">Expenses Log</h3><p className="font-medium text-yellow-900 mt-1">Filters included</p></div>
+            <span className="text-4xl">💸</span><div><h3 className="text-2xl font-black group-hover:underline">Expenses Log</h3></div>
           </button>
           <button onClick={() => setActiveModal('viewReceipts')} className="bg-blue-600 text-white p-10 rounded-3xl shadow-lg hover:bg-blue-700 hover:scale-105 transition-all text-left flex flex-col justify-between h-48 group">
-            <span className="text-4xl">📄</span><div><h3 className="text-2xl font-black group-hover:underline">View Documents</h3><p className="font-medium text-blue-100 mt-1">Receipts & Invoices</p></div>
+            <span className="text-4xl">📄</span><div><h3 className="text-2xl font-black group-hover:underline">View Documents</h3></div>
           </button>
           <button onClick={() => setActiveModal('low')} className="bg-gray-300 text-gray-800 p-10 rounded-3xl shadow-lg border border-gray-400 hover:bg-gray-400 hover:scale-105 transition-all text-left flex flex-col justify-between h-48 group">
             <span className="text-4xl">⚠️</span><div><h3 className="text-2xl font-black group-hover:underline">Low Inventory Alerts</h3></div>
           </button>
           <button onClick={() => router.push('/reports/statistics')} className="bg-green-600 text-white p-10 rounded-3xl shadow-lg hover:bg-green-700 hover:scale-105 transition-all text-left flex flex-col justify-between h-48 group">
-            <span className="text-4xl">📈</span><div><h3 className="text-2xl font-black group-hover:underline">Statistics & Trends</h3><p className="font-medium text-green-100 mt-1">Graphs & Visual Data</p></div>
+            <span className="text-4xl">📈</span><div><h3 className="text-2xl font-black group-hover:underline">Statistics & Trends</h3></div>
           </button>
         </div>
 

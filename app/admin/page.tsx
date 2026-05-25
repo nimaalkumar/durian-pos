@@ -423,7 +423,7 @@ export default function AdminModule() {
         </button>
         
         <button onClick={() => setActiveModal('stockIn')} className="bg-green-600 text-white p-8 rounded-3xl shadow-lg hover:bg-green-700 hover:scale-105 transition-all text-left flex flex-col justify-between h-48 group">
-          <span className="text-4xl">📥</span><div><h3 className="text-xl font-black group-hover:underline">Product Stock In</h3><p className="font-medium text-green-100 mt-1">Add Durians & Fruits</p></div>
+          <span className="text-4xl">📥</span><div><h3 className="text-xl font-black group-hover:underline">Fruits Stock In</h3><p className="font-medium text-green-100 mt-1">Add Durians & Fruits</p></div>
         </button>
 
         <button onClick={() => setActiveModal('mixTupperware')} className="bg-purple-600 text-white p-8 rounded-3xl shadow-lg hover:bg-purple-700 hover:scale-105 transition-all text-left flex flex-col justify-between h-48 group">
@@ -435,7 +435,7 @@ export default function AdminModule() {
         </button>
         
         <button onClick={() => setActiveModal('manageInventory')} className="bg-white border-4 border-green-600 text-green-900 p-8 rounded-3xl shadow-lg hover:bg-green-50 hover:scale-105 transition-all text-left flex flex-col justify-between h-48 group">
-          <span className="text-4xl">✏️</span><div><h3 className="text-xl font-black group-hover:underline">Manage Inventory</h3><p className="font-bold text-green-700 mt-1">Modify/Delete Products</p></div>
+          <span className="text-4xl">✏️</span><div><h3 className="text-xl font-black group-hover:underline">Manage Fruits</h3><p className="font-bold text-green-700 mt-1">Modify/Delete</p></div>
         </button>
 
         <button onClick={() => setActiveModal('spoilage')} className="bg-yellow-500 text-black p-8 rounded-3xl shadow-lg hover:bg-yellow-600 hover:scale-105 transition-all text-left flex flex-col justify-between h-48 group">
@@ -447,7 +447,7 @@ export default function AdminModule() {
         </button>
         
         <button onClick={() => setActiveModal('managePack')} className="bg-white border-4 border-yellow-500 text-yellow-900 p-8 rounded-3xl shadow-lg hover:bg-yellow-50 hover:scale-105 transition-all text-left flex flex-col justify-between h-48 group">
-          <span className="text-4xl">📦</span><div><h3 className="text-xl font-black group-hover:underline">Edit Packaging</h3><p className="font-bold text-yellow-800 mt-1">Modify/Delete</p></div>
+          <span className="text-4xl">📦</span><div><h3 className="text-xl font-black group-hover:underline">Manage Packaging</h3><p className="font-bold text-yellow-800 mt-1">Modify/Delete</p></div>
         </button>
       </div>
 
