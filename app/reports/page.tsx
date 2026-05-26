@@ -699,8 +699,7 @@ export default function ReportsModule() {
 
         {(printView === 'full' || printView === 'expenses') && (
           <div className="mb-10 break-inside-avoid">
-            <h3 className="text-sm font-black text-black uppercase tracking-widest mb-2">
-              Business Expenses Log 
+            <h3 className="text-sm font-black text-black uppercase tracking-widest mb-2"> 
               {expFilterSupplier !== 'all' && ` | Supplier: ${expFilterSupplier}`}
               {expFilterType !== 'all' && ` | Product: ${expFilterType}`}
             </h3>
