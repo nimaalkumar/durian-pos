@@ -255,18 +255,31 @@ export default function ReportsModule() {
             <span className="text-4xl">🧾</span><div><h3 className="text-2xl font-black group-hover:underline">Sales Log</h3></div>
           </button>
           <button onClick={() => setActiveModal('expenses')} className="bg-yellow-500 text-gray-900 p-10 rounded-3xl shadow-lg hover:bg-yellow-600 hover:scale-105 transition-all text-left flex flex-col justify-between h-48 group">
-            <span className="text-4xl">💸</span><div><h3 className="text-2xl font-black group-hover:underline">Expenses Log</h3></div>
+            <span className="text-4xl">💸</span><div><h3 className="text-2xl font-black group-hover:underline">Expenses Log</h3><p className="font-medium text-yellow-900 mt-1">Filters included</p></div>
           </button>
           <button onClick={() => setActiveModal('viewReceipts')} className="bg-blue-600 text-white p-10 rounded-3xl shadow-lg hover:bg-blue-700 hover:scale-105 transition-all text-left flex flex-col justify-between h-48 group">
-            <span className="text-4xl">📄</span><div><h3 className="text-2xl font-black group-hover:underline">View Documents</h3></div>
+            <span className="text-4xl">📄</span><div><h3 className="text-2xl font-black group-hover:underline">View Documents</h3><p className="font-medium text-blue-100 mt-1">Receipts & Invoices</p></div>
           </button>
           <button onClick={() => setActiveModal('low')} className="bg-gray-300 text-gray-800 p-10 rounded-3xl shadow-lg border border-gray-400 hover:bg-gray-400 hover:scale-105 transition-all text-left flex flex-col justify-between h-48 group">
             <span className="text-4xl">⚠️</span><div><h3 className="text-2xl font-black group-hover:underline">Low Inventory Alerts</h3></div>
           </button>
           <button onClick={() => router.push('/reports/statistics')} className="bg-green-600 text-white p-10 rounded-3xl shadow-lg hover:bg-green-700 hover:scale-105 transition-all text-left flex flex-col justify-between h-48 group">
-            <span className="text-4xl">📈</span><div><h3 className="text-2xl font-black group-hover:underline">Statistics & Trends</h3></div>
+            <span className="text-4xl">📈</span><div><h3 className="text-2xl font-black group-hover:underline">Statistics & Trends</h3><p className="font-medium text-green-100 mt-1">Graphs & Visual Data</p></div>
           </button>
         </div>
+
+        {/* LOW STOCK ALERT (RE-ADDED HERE) */}
+        {lowStock.length > 0 && (
+          <div className="mt-10 bg-yellow-50 border-l-8 border-yellow-500 p-6 rounded-2xl shadow-xl flex items-center animate-pulse">
+            <span className="text-5xl mr-6">🚨</span>
+            <div>
+              <h4 className="text-xl font-black text-yellow-900 uppercase tracking-widest mb-1">Low Stock Warning</h4>
+              <p className="text-yellow-700 font-bold text-lg">
+                {lowStock.map(item => `${item.type} (${Number(item.total_weight_kg).toFixed(3)}kg / ${item.total_durians}pcs)`).join('  •  ')}
+              </p>
+            </div>
+          </div>
+        )}
 
         {/* MODAL DISPLAYS */}
         {activeModal === 'top' && (
@@ -352,7 +365,7 @@ export default function ReportsModule() {
                  </select>
                </div>
                <div className="flex-1">
-                 <label className="block text-xs font-bold text-yellow-900 uppercase mb-1">Filter by Product Type</label>
+                 <label className="block text-xs font-bold text-yellow-900 uppercase mb-1">Filter by Durian/Product Type</label>
                  <select value={expFilterType} onChange={e=>setExpFilterType(e.target.value)} className="w-full p-2 border-2 border-yellow-300 rounded-lg font-bold">
                     <option value="all">All Product Types</option>
                     {uniqueExpenseTypes.map((t:any) => <option key={t} value={t}>{t}</option>)}
@@ -380,12 +393,16 @@ export default function ReportsModule() {
                     <td className="p-4 font-bold text-gray-800">{exp.category}</td>
                     <td className="p-4 text-gray-700">
                       <div>{exp.description}</div>
+                      
                       {/* Detailed calculation based on weight and cost if it's a restock */}
                       {(exp.category === 'Durian Restock' || exp.category === 'Other Fruit Restock') && exp.weight_bought_kg > 0 && (
                           <div className="text-sm font-bold text-gray-600 mt-0.5">
-                             {exp.quantity_bought || 0} units @ RM {(Math.abs(exp.total_cost_rm) / exp.weight_bought_kg).toFixed(2)}/kg
+                             Total Quantity: {exp.quantity_bought || 0} units<br/>
+                             Total Weight: {exp.weight_bought_kg.toFixed(3)} kg<br/>
+                             Price Per Kg: RM {(Math.abs(exp.total_cost_rm) / exp.weight_bought_kg).toFixed(2)}
                           </div>
                       )}
+                      
                       {exp.supplier_name && <div className="text-sm font-bold text-green-700 mt-1">Sup: {exp.supplier_name}</div>}
                       {exp.receipt_url && <a href={exp.receipt_url} target="_blank" rel="noreferrer" className="text-xs text-green-600 underline hover:text-green-800 mt-1 inline-block">📄 View Document</a>}
                     </td>
@@ -683,12 +700,17 @@ export default function ReportsModule() {
                     <td className="border border-black p-2 font-bold">{exp.category}</td>
                     <td className="border border-black p-2">
                       <div>{exp.description}</div>
+                      
+                      {/* Detailed calculation based on weight and cost if it's a restock */}
                       {(exp.category === 'Durian Restock' || exp.category === 'Other Fruit Restock') && exp.weight_bought_kg > 0 && (
-                          <div className="font-bold">
-                             {exp.quantity_bought || 0} units @ RM {(Math.abs(exp.total_cost_rm) / exp.weight_bought_kg).toFixed(2)}/kg
+                          <div className="font-bold mt-1">
+                             Total Quantity: {exp.quantity_bought || 0} units<br/>
+                             Total Weight: {exp.weight_bought_kg.toFixed(3)} kg<br/>
+                             Price Per Kg: RM {(Math.abs(exp.total_cost_rm) / exp.weight_bought_kg).toFixed(2)}
                           </div>
                       )}
-                      {exp.supplier_name && <div className="font-bold mt-0.5">Supplier: {exp.supplier_name}</div>}
+
+                      {exp.supplier_name && <div className="font-bold mt-1">Supplier: {exp.supplier_name}</div>}
                     </td>
                     <td className="border border-black p-2 text-right font-black text-base">{exp.total_cost_rm < 0 ? '+' : ''}{Math.abs(exp.total_cost_rm).toFixed(2)}</td>
                   </tr>
