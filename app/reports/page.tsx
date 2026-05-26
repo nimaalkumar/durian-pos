@@ -90,8 +90,16 @@ export default function ReportsModule() {
   
   // Expenses Advanced Filter (Supplier & Type)
   const filteredExpenses = baseFilteredExpenses.filter(e => {
+      // 1. Supplier Filter
       if (expFilterSupplier !== 'all' && e.supplier_name !== expFilterSupplier) return false;
-      if (expFilterType !== 'all' && e.durian_type !== expFilterType) return false;
+      
+      // 2. Product Type Filter (Including the grouped "All Durians" option)
+      if (expFilterType === 'all_durians') {
+         if (e.category !== 'Durian Restock') return false;
+      } else if (expFilterType !== 'all' && e.durian_type !== expFilterType) {
+         return false;
+      }
+      
       return true;
   });
 
@@ -101,8 +109,13 @@ export default function ReportsModule() {
   const totalRevenue = filteredSales.reduce((sum, s) => sum + Number(s.total_price), 0);
   const totalExpenses = filteredExpenses.reduce((sum, e) => sum + Number(e.total_cost_rm), 0); 
   const grossProfit = totalRevenue - totalExpenses;
+  
   const totalWeight = filteredSales.reduce((sum, s) => sum + Number(s.weight_kg), 0);
   const totalQty = filteredSales.reduce((sum, s) => sum + Number(s.quantity), 0);
+
+  // Calculate totals for filtered expenses log
+  const totalExpenseWeight = filteredExpenses.reduce((sum, e) => sum + Number(e.weight_bought_kg || 0), 0);
+  const totalExpenseQty = filteredExpenses.reduce((sum, e) => sum + Number(e.quantity_bought || 0), 0);
 
   const salesByDurian: Record<string, { type: string, qty: number, weight: number, revenue: number }> = {};
   filteredSales.forEach(s => {
@@ -255,16 +268,16 @@ export default function ReportsModule() {
             <span className="text-4xl">🧾</span><div><h3 className="text-2xl font-black group-hover:underline">Sales Log</h3></div>
           </button>
           <button onClick={() => setActiveModal('expenses')} className="bg-yellow-500 text-gray-900 p-10 rounded-3xl shadow-lg hover:bg-yellow-600 hover:scale-105 transition-all text-left flex flex-col justify-between h-48 group">
-            <span className="text-4xl">💸</span><div><h3 className="text-2xl font-black group-hover:underline">Expenses Log</h3><p className="font-medium text-yellow-900 mt-1">Filters included</p></div>
+            <span className="text-4xl">💸</span><div><h3 className="text-2xl font-black group-hover:underline">Expenses Log</h3></div>
           </button>
           <button onClick={() => setActiveModal('viewReceipts')} className="bg-blue-600 text-white p-10 rounded-3xl shadow-lg hover:bg-blue-700 hover:scale-105 transition-all text-left flex flex-col justify-between h-48 group">
-            <span className="text-4xl">📄</span><div><h3 className="text-2xl font-black group-hover:underline">View Documents</h3><p className="font-medium text-blue-100 mt-1">Receipts & Invoices</p></div>
+            <span className="text-4xl">📄</span><div><h3 className="text-2xl font-black group-hover:underline">View Documents</h3></div>
           </button>
           <button onClick={() => setActiveModal('low')} className="bg-gray-300 text-gray-800 p-10 rounded-3xl shadow-lg border border-gray-400 hover:bg-gray-400 hover:scale-105 transition-all text-left flex flex-col justify-between h-48 group">
             <span className="text-4xl">⚠️</span><div><h3 className="text-2xl font-black group-hover:underline">Low Inventory Alerts</h3></div>
           </button>
           <button onClick={() => router.push('/reports/statistics')} className="bg-green-600 text-white p-10 rounded-3xl shadow-lg hover:bg-green-700 hover:scale-105 transition-all text-left flex flex-col justify-between h-48 group">
-            <span className="text-4xl">📈</span><div><h3 className="text-2xl font-black group-hover:underline">Statistics & Trends</h3><p className="font-medium text-green-100 mt-1">Graphs & Visual Data</p></div>
+            <span className="text-4xl">📈</span><div><h3 className="text-2xl font-black group-hover:underline">Statistics & Trends</h3></div>
           </button>
         </div>
 
@@ -358,16 +371,17 @@ export default function ReportsModule() {
             {/* EXPENSE ADVANCED FILTERS */}
             <div className="bg-yellow-50 border-2 border-yellow-200 p-4 rounded-xl mb-6 flex gap-4 print:hidden">
                <div className="flex-1">
-                 <label className="block text-xs font-bold text-yellow-900 uppercase mb-1">Filter by Supplier</label>
+                 <label className="block text-xs font-bold text-yellow-900 uppercase mb-1">Supplier</label>
                  <select value={expFilterSupplier} onChange={e=>setExpFilterSupplier(e.target.value)} className="w-full p-2 border-2 border-yellow-300 rounded-lg font-bold">
                     <option value="all">All Suppliers</option>
                     {uniqueExpenseSuppliers.map((s:any) => <option key={s} value={s}>{s}</option>)}
                  </select>
                </div>
                <div className="flex-1">
-                 <label className="block text-xs font-bold text-yellow-900 uppercase mb-1">Filter by Durian/Product Type</label>
+                 <label className="block text-xs font-bold text-yellow-900 uppercase mb-1">Durian/Product Type</label>
                  <select value={expFilterType} onChange={e=>setExpFilterType(e.target.value)} className="w-full p-2 border-2 border-yellow-300 rounded-lg font-bold">
                     <option value="all">All Product Types</option>
+                    <option value="all_durians">🍍 All Durians (Grouped)</option>
                     {uniqueExpenseTypes.map((t:any) => <option key={t} value={t}>{t}</option>)}
                  </select>
                </div>
@@ -392,7 +406,11 @@ export default function ReportsModule() {
                     </td>
                     <td className="p-4 font-bold text-gray-800">{exp.category}</td>
                     <td className="p-4 text-gray-700">
-                      <div>{exp.description}</div>
+                      
+                      {/* Hide the auto-generated "Bought @" description if it's a restock */}
+                      {!(exp.description && exp.description.startsWith('Bought @')) && (
+                          <div>{exp.description}</div>
+                      )}
                       
                       {/* Detailed calculation based on weight and cost if it's a restock */}
                       {(exp.category === 'Durian Restock' || exp.category === 'Other Fruit Restock') && exp.weight_bought_kg > 0 && (
@@ -422,7 +440,12 @@ export default function ReportsModule() {
               </tbody>
               <tfoot>
                 <tr className="bg-yellow-50 border-t-4 border-yellow-300">
-                  <td colSpan={3} className="p-4 font-black text-yellow-900 text-right uppercase tracking-widest">Total Expenses:</td>
+                  <td colSpan={3} className="p-4 font-black text-yellow-900 text-right uppercase tracking-widest">
+                      <span className="text-sm font-bold text-yellow-700 tracking-normal normal-case mr-6">
+                          Total Restock: {totalExpenseQty} units / {totalExpenseWeight.toFixed(3)} kg
+                      </span>
+                      Total Expenses:
+                  </td>
                   <td className="p-4 font-black text-yellow-700 text-right text-xl">RM {totalExpenses.toFixed(2)}</td>
                   <td className="print:hidden"></td>
                 </tr>
@@ -699,8 +722,12 @@ export default function ReportsModule() {
                     </td>
                     <td className="border border-black p-2 font-bold">{exp.category}</td>
                     <td className="border border-black p-2">
-                      <div>{exp.description}</div>
                       
+                      {/* Hide the auto-generated "Bought @" description if it's a restock */}
+                      {!(exp.description && exp.description.startsWith('Bought @')) && (
+                          <div>{exp.description}</div>
+                      )}
+
                       {/* Detailed calculation based on weight and cost if it's a restock */}
                       {(exp.category === 'Durian Restock' || exp.category === 'Other Fruit Restock') && exp.weight_bought_kg > 0 && (
                           <div className="font-bold mt-1">
@@ -719,7 +746,12 @@ export default function ReportsModule() {
               </tbody>
               <tfoot>
                 <tr>
-                  <td colSpan={3} className="border border-black p-2 font-black text-right uppercase tracking-widest">Total Expenses:</td>
+                  <td colSpan={3} className="border border-black p-2 font-black text-right uppercase tracking-widest">
+                      <span className="text-xs font-bold tracking-normal normal-case mr-4">
+                          Total Restock: {totalExpenseQty} units / {totalExpenseWeight.toFixed(3)} kg
+                      </span>
+                      Total Expenses:
+                  </td>
                   <td className="border border-black p-2 font-black text-right text-sm">RM {totalExpenses.toFixed(2)}</td>
                 </tr>
               </tfoot>
